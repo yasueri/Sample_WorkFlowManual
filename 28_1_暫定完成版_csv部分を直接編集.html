@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>業務フロー マニュアル</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 20px;
+        background: #f7f7f7;
+        overflow-y: auto;
+      }
+      .manual-container {
+        max-width: 600px;
+        margin: 0 auto;
+      }
+      #story-container {
+        margin-bottom: 20px;
+      }
+      .story-section {
+        margin: 10px 0;
+        padding: 15px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .past {
+        background-color: #f0f0f0;
+      }
+      .current {
+        background-color: #ffffcc;
+        font-weight: bold;
+      }
+      .story-title {
+        font-size: 1.6em;
+        margin-bottom: 5px;
+      }
+      .story-desc {
+        font-size: 1.2em;
+        white-space: pre-wrap;
+        margin-bottom: 10px;
+        color: #666;
+      }
+      .option-container {
+        margin-top: 10px;
+        display: flex;
+        justify-content: center;
+        gap: 50px;
+        flex-wrap: wrap;
+      }
+      .option-button {
+        min-width: 130px;
+        min-height: 50px;
+        font-size: 1em;
+        border: none;
+        background-color: #999999;
+        color: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .option-button:hover,
+      .option-button.selected {
+        background-color: #007acc;
+      }
+      .next-button {
+        font-size: 1em;
+        padding: 10px 15px;
+        border: none;
+        background-color: #999999;
+        color: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .next-button:hover,
+      .next-button.selected {
+        background-color: #007acc;
+      }
+      #popup-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      #popup-box {
+        background: #fff;
+        width: 400px;
+        height: 200px;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      #popup-box p {
+        margin-bottom: 20px;
+        font-size: 1.2em;
+      }
+      .popup-button {
+        width: 130px;
+        height: 50px;
+        font-size: 1em;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        background-color: #999999;
+        color: #fff;
+      }
+      #popup-yes:hover,
+      #popup-no:hover {
+        background-color: #007acc;
+      }
+      .popup-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 50px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>フローチャートサンプル_2025/4/1</h1>
+    <div class="manual-container">
+      <div id="story-container"></div>
+    </div>
+    <div id="popup-overlay">
+      <div id="popup-box">
+        <p>選択しなおしますか？</p>
+        <div class="popup-buttons">
+          <button id="popup-yes" class="popup-button">はい</button>
+          <button id="popup-no" class="popup-button">いいえ</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      const csvData = `StepID,Title,Description1,Description2,Description3,Option1Text,Option1Next,Option2Text,Option2Next,DefaultNext
+1,テスト開始,次画面で画面の説明をします,,,,,,,2
+2,タイトル行,説明1,説明2,説明3,,,,,3
+3,,,〇〇画面 要印刷,,,,,,4
+4,,,選択肢分岐テスト,,StepID 5へ,5,StepID 7へ,7,
+5,,"複数行テスト。
+現在、「説明１」に複数行を表示中
+・想定通り
+・表示されて
+・いるね！",,,"StepID 6へ
+※ボタンが長文だった場合、このボタンのように表示されます",6,,,6
+6,,,コードBはありますか？,※コードAは必ず「有」なので選択省略,「有」,7,「無」,8,
+7,,,コードCはありますか？,,「有」,9,「無」,10,
+8,,,コードCはありますか？,,「有」,11,「無」,12,
+9,,,下記コードを設定せよ,A,設定しました,13,,,
+10,,,下記コードを設定せよ,"A,C",設定しました,13,,,
+11,,,下記コードを設定せよ,"A,B",設定しました,13,,,
+12,,,下記コードを設定せよ,"A,B,C",設定しました,13,,,
+13,,,Aはループテスト。Bへ進むとテスト終了。,,to A,A1,to B,B1,
+A1,,,StepA1へ遷移確認,,,,,,A2
+A2,,,StepA4まで進め,,,,,,A3
+A3,,,StepA4まで進め,,,,,,A4
+A4,,,ループテスト,,to A2,A2,to A3,A3,
+B1,,,機能実装テストは完了。,あとは細かいレイアウトを整え、中身を入力するだけ。,,,,,`;
+      
+      function parseCSV(csvText) {
+        const rows = [];
+        let currentRow = [];
+        let currentField = "";
+        let insideQuotes = false;
+        for (let i = 0; i < csvText.length; i++) {
+          const char = csvText[i];
+          if (char === '"') {
+            if (insideQuotes && csvText[i + 1] === '"') {
+              currentField += '"';
+              i++;
+            } else {
+              insideQuotes = !insideQuotes;
+            }
+          } else if (char === ',' && !insideQuotes) {
+            currentRow.push(currentField);
+            currentField = "";
+          } else if ((char === '\n' || char === '\r') && !insideQuotes) {
+            if (char === '\r' && csvText[i + 1] === '\n') {
+              i++;
+            }
+            currentRow.push(currentField);
+            rows.push(currentRow);
+            currentRow = [];
+            currentField = "";
+          } else {
+            currentField += char;
+          }
+        }
+        if (currentField || currentRow.length > 0) {
+          currentRow.push(currentField);
+          rows.push(currentRow);
+        }
+        return rows;
+      }
+      
+      const csvRows = parseCSV(csvData);
+      const headers = csvRows[0].map(h => h.trim());
+      const rows = csvRows.slice(1);
+      const data = rows.map(row => {
+        const obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = row[index] ? row[index].trim() : "";
+        });
+        return obj;
+      });
+      
+      const stepsData = {};
+      data.forEach(row => {
+        const id = row.StepID;
+        const title = row.Title;
+        let desc = "";
+        if (row.Description1) desc += row.Description1;
+        if (row.Description2) desc += "\n" + row.Description2;
+        if (row.Description3) desc += "\n" + row.Description3;
+        const options = [];
+        if (row.Option1Text && row.Option1Next) {
+          options.push({ text: row.Option1Text, next: row.Option1Next.replace(/to\s*/, "") });
+        }
+        if (row.Option2Text && row.Option2Next) {
+          options.push({ text: row.Option2Text, next: row.Option2Next.replace(/to\s*/, "") });
+        }
+        const defaultNext = row.DefaultNext || "";
+        stepsData[id] = { id, title, desc, options, defaultNext };
+      });
+      
+      let storyHistory = [];
+      
+      function styleDesc(text) {
+        if (!text) return "";
+        let styled = text.replace(/\n/g, "<br>");
+        styled = styled.replace(/要印刷/g, '<span style="color: red; font-weight: bold;">要印刷</span>');
+        return styled;
+      }
+      
+      function renderFlow() {
+        const container = document.getElementById("story-container");
+        container.innerHTML = "";
+        storyHistory.forEach((entry, index) => {
+          const step = stepsData[entry.stepId];
+          const section = document.createElement("div");
+          section.classList.add("story-section");
+          section.classList.add(index === storyHistory.length - 1 ? "current" : "past");
+          if (step.title) {
+            const titleDiv = document.createElement("div");
+            titleDiv.className = "story-title";
+            titleDiv.textContent = step.id + " - " + step.title;
+            section.appendChild(titleDiv);
+          }
+          const descDiv = document.createElement("div");
+          descDiv.className = "story-desc";
+          descDiv.innerHTML = styleDesc(step.desc);
+          section.appendChild(descDiv);
+          const optionsDiv = document.createElement("div");
+          optionsDiv.className = "option-container";
+          if (step.options.length > 0) {
+            step.options.forEach(option => {
+              const btn = document.createElement("button");
+              btn.className = "option-button";
+              btn.innerHTML = styleDesc(option.text);
+              if (entry.chosenOption === option.text) {
+                btn.classList.add("selected");
+              }
+              if (index < storyHistory.length - 1) {
+                btn.onclick = () => {
+                  showConfirmation(index, option.text, option.next);
+                };
+              } else {
+                btn.onclick = () => {
+                  storyHistory = storyHistory.slice(0, index + 1);
+                  storyHistory[index].chosenOption = option.text;
+                  if (stepsData[option.next]) {
+                    storyHistory.push({ stepId: option.next, chosenOption: null });
+                  }
+                  renderFlow();
+                  scrollToCurrent();
+                };
+              }
+              optionsDiv.appendChild(btn);
+            });
+          } else if (step.defaultNext) {
+            const btn = document.createElement("button");
+            btn.className = "next-button";
+            btn.textContent = "次へ";
+            if (index < storyHistory.length - 1) {
+              btn.onclick = () => {
+                showConfirmation(index, "次へ", step.defaultNext);
+              };
+            } else {
+              btn.onclick = () => {
+                storyHistory = storyHistory.slice(0, index + 1);
+                if (stepsData[step.defaultNext]) {
+                  storyHistory.push({ stepId: step.defaultNext, chosenOption: null });
+                }
+                renderFlow();
+                scrollToCurrent();
+              };
+            }
+            optionsDiv.appendChild(btn);
+          }
+          section.appendChild(optionsDiv);
+          container.appendChild(section);
+        });
+        scrollToCurrent();
+      }
+      
+      function scrollToCurrent() {
+        const sections = document.querySelectorAll(".story-section");
+        if (sections.length > 0) {
+          sections[sections.length - 1].scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }
+      
+      function showConfirmation(index, optionText, targetStep) {
+        const overlay = document.getElementById("popup-overlay");
+        overlay.style.display = "flex";
+        const yesBtn = document.getElementById("popup-yes");
+        const noBtn = document.getElementById("popup-no");
+        yesBtn.onclick = () => {
+          storyHistory = storyHistory.slice(0, index + 1);
+          storyHistory[index].chosenOption = optionText;
+          if (stepsData[targetStep]) {
+            storyHistory.push({ stepId: targetStep, chosenOption: null });
+          }
+          hidePopup();
+          renderFlow();
+          scrollToCurrent();
+        };
+        noBtn.onclick = hidePopup;
+      }
+      
+      function hidePopup() {
+        const overlay = document.getElementById("popup-overlay");
+        overlay.style.display = "none";
+      }
+      
+      storyHistory.push({ stepId: "1", chosenOption: null });
+      renderFlow();
+    </script>
+  </body>
+</html>
