@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>業務フロー ナビゲーションシステム Ver0.3</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            text-align: center;
+            padding: 50px;
+        }
+        
+        h1 {
+            margin-bottom: 50px;
+        }
+        
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(2, 500px);
+            grid-gap: 50px;
+            justify-content: center;
+        }
+        
+        .grid-container button {
+            width: 500px;
+            height: 200px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>業務フロー ナビゲーションシステム Ver0.3</h1>
+    
+    <div class="grid-container">
+        <button onclick="window.location.href='lt.html';">ピーチの凍結</button>
+        <button onclick="window.location.href='rt.html';">ベーコンの凍結</button>
+        <button>ピーチの解凍</button>
+        <button>ベーコンその他</button>
+    </div>
+</body>
+</html>

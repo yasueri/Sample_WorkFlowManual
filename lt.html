@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8" />
+    <title>業務フロー ナビゲーション</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- CSVデータをグローバル変数として定義 -->
+    <script>
+        window.csvData = `StepID,Title,Description1,Description2,Description3,Option1Text,Option1Next,Option2Text,Option2Next,DefaultNext
+1,テスト開始,次画面で画面の説明をします,,,,,,,2
+2,タイトル行,説明1,説明2,説明3,,,,,3
+3,,,〇〇画面 要印刷,,,,,,4
+4,,,選択肢分岐テスト,,StepID 5へ,5,StepID 7へ,7,
+5,,"複数行テスト。
+現在、「説明１」に複数行を表示中
+・想定通り
+・表示されて
+・いるね！",,,"StepID 6へ
+※ボタンが長文だった場合、このボタンのように表示されます",6,,,6
+6,,,コードBはありますか？,※コードAは必ず「有」なので選択省略,「有」,7,「無」,8,
+7,,,コードCはありますか？,,「有」,9,「無」,10,
+8,,,コードCはありますか？,,「有」,11,「無」,12,
+9,,,下記コードを設定せよ,A,設定しました,13,,,
+10,,,下記コードを設定せよ,"A,C",設定しました,13,,,
+11,,,下記コードを設定せよ,"A,B",設定しました,13,,,
+12,,,下記コードを設定せよ,"A,B,C",設定しました,13,,,
+13,,,Aはループテスト。Bへ進むとテスト終了。,,to A,A1,to B,B1,
+A1,,,StepA1へ遷移確認,,,,,,A2
+A2,,,StepA4まで進め,,,,,,A3
+A3,,,StepA4まで進め,,,,,,A4
+A4,,,ループテスト,,to A2,A2,to A3,A3,
+B1,,,機能実装テストは完了。,あとは細かいレイアウトを整え、中身を入力するだけ。,,,,,
+`;
+    </script>
+
+    <header class="header">
+        <div class="header-menu"><span class="hamburger-icon">☰</span> 途中から始める
+            <div id="dropdown-menu" class="dropdown-menu">
+                <div class="dropdown-item" data-step="6">Step6から始める</div>
+                <div class="dropdown-item" data-step="13">Step13から始める</div>
+            </div>
+        </div>
+        <div class="header-center">ピーチ凍結サンプル</div>
+        <div class="header-right">
+            <button id="scroll-top-button">ページ上部へ戻る</button>
+            <button id="top-page-button">トップページへ戻る</button>
+        </div>
+    </header>
+    <div class="manual-container">
+        <div id="story-container"></div>
+    </div>
+    <div id="popup-overlay">
+        <div id="popup-box">
+            <p>選択しなおしますか？</p>
+            <div class="popup-buttons">
+                <button id="popup-yes" class="popup-button">はい</button>
+                <button id="popup-no" class="popup-button">いいえ</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
