@@ -82,7 +82,7 @@ body {
 }
 
 .manual-container {
-    max-width: 600px;
+    max-width: 720px;
     margin: 0 auto;
 }
 
@@ -105,13 +105,17 @@ body {
 .story-title {
     font-size: 1.6em;
     margin-bottom: 5px;
+    text-align: left;
 }
 
-.story-desc {
+.story-desc { /* テキスト本文 */
     font-size: 1.2em;
     white-space: pre-wrap;
     margin-bottom: 10px;
+    margin-left: 10px;
+    margin-right: 10px;
     color: #666;
+    text-align: left;
 }
 
 .option-container {
@@ -204,4 +208,36 @@ body {
     display: flex;
     justify-content: center;
     gap: 50px;
+}
+
+#warning-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+}
+
+#warning-popup-box {
+    background: #fff;
+    width: 400px;
+    height: 200px;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#warning-popup-box p {
+    margin-bottom: 20px;
+    font-size: 1.2em;
+    color: #d9534f;
 }
