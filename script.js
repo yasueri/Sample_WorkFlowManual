@@ -81,16 +81,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 next: row.Option2Next.replace(/to\s*/, "")
             });
         }
+        // 3つ目の選択肢に対応（新規追加）
+        if (row.Option3Text && row.Option3Next) {
+            options.push({
+                text: row.Option3Text,
+                next: row.Option3Next.replace(/to\s*/, "")
+            });
+        }
 
         const defaultNext = row.DefaultNext || "";
         
         // NonAutoSelect フラグを取得 - 明示的に "1" または "true" の場合のみ自動選択を無効にする
-        // ここを修正：文字列として比較するようにし、厳密な比較演算子を避ける
         const nonAutoSelectValue = row.NonAutoSelect ? row.NonAutoSelect.trim() : "";
         const nonAutoSelect = nonAutoSelectValue === "1" || nonAutoSelectValue.toLowerCase() === "true";
-        
-        // デバッグ出力 - CSVの値を表示
-        console.log(`StepID: ${id}, NonAutoSelect値: "${nonAutoSelectValue}", 解釈結果: ${nonAutoSelect}`);
         
         stepsData[id] = { 
             id, 
@@ -98,19 +101,17 @@ document.addEventListener('DOMContentLoaded', function() {
             desc, 
             options, 
             defaultNext,
-            // 自動選択無効フラグの反転（非自動選択が有効=自動選択が無効）
-            autoSelectEnabled: !nonAutoSelect,
-            nonAutoSelect: nonAutoSelectValue // デバッグ用に元の値も保存
+            // 自動選択が有効かどうかのフラグ（NonAutoSelectが1または真の場合は無効）
+            nonAutoSelect: nonAutoSelect
         };
-        
-        // デバッグ用にフラグの状態を出力
-        console.log(`StepID: ${id}, nonAutoSelect: ${nonAutoSelect}, autoSelectEnabled: ${!nonAutoSelect}`);
     });
 
     // フロー履歴の管理
     let storyHistory = [];
-    // 選択肢のテキストベースの履歴を保存するオブジェクト
-    let optionTextHistory = {};
+    // 選択肢と選択内容のマッピングを保存するオブジェクト
+    let optionSelectionHistory = {};
+    // シーケンス番号のカウンター
+    let sequenceCounter = 0;
 
     // 説明テキストのスタイル適用
     function styleDesc(text) {
@@ -131,6 +132,40 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // 選択肢テキストに基づく履歴キーを作成（StepIDは含めない）
+    function createOptionsTextKey(options) {
+        // 選択肢のテキストのみに基づいてキーを作成
+        return options.map(opt => opt.text).sort().join('||');
+    }
+
+    // 履歴の初期化関数
+    function clearHistoryAfterIndex(index) {
+        // 指定されたインデックスまでの履歴を保持し、それ以降をクリア
+        storyHistory = storyHistory.slice(0, index + 1);
+        
+        // シーケンスカウンターを更新
+        // 現在の履歴の最後のシーケンスID+1にセット
+        if (storyHistory.length > 0 && storyHistory[storyHistory.length - 1].sequenceId !== undefined) {
+            sequenceCounter = storyHistory[storyHistory.length - 1].sequenceId + 1;
+        } else {
+            sequenceCounter = storyHistory.length; // フォールバック
+        }
+        
+        // 自動選択履歴の初期化
+        optionSelectionHistory = {};
+        
+        // 現在までの選択を新しい履歴に登録
+        storyHistory.forEach((entry, idx) => {
+            if (entry.chosenOption && stepsData[entry.stepId]) {
+                const step = stepsData[entry.stepId];
+                if (!step.nonAutoSelect && step.options.length > 0) {
+                    const optionsTextKey = createOptionsTextKey(step.options);
+                    optionSelectionHistory[optionsTextKey] = entry.chosenOption;
+                }
+            }
+        });
+    }
+
     // 確認ポップアップ表示
     function showConfirmation(index, optionText, targetStep) {
         const overlay = document.getElementById("popup-overlay");
@@ -140,11 +175,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const noBtn = document.getElementById("popup-no");
 
         yesBtn.onclick = () => {
-            storyHistory = storyHistory.slice(0, index + 1);
+            // 履歴を初期化（インデックスまで保持、以降をクリア＆自動選択履歴を再構築）
+            clearHistoryAfterIndex(index);
+            
+            // 現在のステップの選択を更新
             storyHistory[index].chosenOption = optionText;
+            
+            // 次のステップを追加
             if (stepsData[targetStep]) {
-                storyHistory.push({ stepId: targetStep, chosenOption: null });
+                storyHistory.push({ 
+                    stepId: targetStep, 
+                    chosenOption: null,
+                    sequenceId: sequenceCounter++
+                });
             }
+            
             hidePopup();
             renderFlow();
             scrollToCurrent();
@@ -172,12 +217,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function hideWarningPopup() {
         const overlay = document.getElementById("warning-popup-overlay");
         overlay.style.display = "none";
-    }
-
-    // 選択肢テキストに基づく履歴キーを作成（StepIDは含めない）
-    function createOptionsTextKey(options) {
-        // 選択肢のテキストのみに基づいてキーを作成
-        return options.map(opt => opt.text).sort().join('||');
     }
 
     // フローのレンダリング
@@ -223,22 +262,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // 最後のステップで、かつ選択肢がある場合の処理
             if (index === storyHistory.length - 1 && step.options.length > 0) {
-                // デバッグ出力
-                console.log(`現在のステップ: ${step.id}, 自動選択有効: ${step.autoSelectEnabled}, NonAutoSelect原値: "${step.nonAutoSelect}"`);
-                
-                // 自動選択が有効な場合のみ処理
-                if (step.autoSelectEnabled) {
+                // 自動選択が有効な場合のみ処理（nonAutoSelectが無効の場合）
+                if (!step.nonAutoSelect) {
                     // 選択肢のテキストのみに基づいてキーを作成
                     const optionsTextKey = createOptionsTextKey(step.options);
                     
-                    // デバッグ出力
-                    console.log(`選択肢テキストキー: ${optionsTextKey}`);
-                    console.log(`過去の選択: ${optionTextHistory[optionsTextKey]}`);
-                    
                     // この選択肢のテキスト組み合わせが過去にあり、かつまだ選択が行われていない場合
-                    if (optionTextHistory[optionsTextKey] && !entry.chosenOption) {
+                    if (optionSelectionHistory[optionsTextKey] && !entry.chosenOption) {
                         // 過去の選択を取得
-                        const pastChoice = optionTextHistory[optionsTextKey];
+                        const pastChoice = optionSelectionHistory[optionsTextKey];
                         
                         // 対応する選択肢とターゲットステップを検索
                         const matchedOption = step.options.find(option => option.text === pastChoice);
@@ -259,7 +291,8 @@ document.addEventListener('DOMContentLoaded', function() {
                                 if (stepsData[matchedOption.next]) {
                                     storyHistory.push({ 
                                         stepId: matchedOption.next, 
-                                        chosenOption: null
+                                        chosenOption: null,
+                                        sequenceId: sequenceCounter++
                                     });
                                     renderFlow();
                                     scrollToCurrent();
@@ -267,8 +300,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             }, 1500); // 1.5秒後に次に進む
                         }
                     }
-                } else {
-                    console.log(`ステップ ${step.id} は自動選択が無効です`);
                 }
             }
 
@@ -297,22 +328,21 @@ document.addEventListener('DOMContentLoaded', function() {
                         };
                     } else {
                         btn.onclick = () => {
-                            storyHistory = storyHistory.slice(0, index + 1);
+                            // 現在のステップで選択を更新
                             storyHistory[index].chosenOption = option.text;
                             
-                            // 選択肢のテキストベースで履歴を記録（自動選択が有効な場合のみ）
-                            if (step.autoSelectEnabled) {
+                            // 選択肢のテキストベースで履歴を記録（nonAutoSelectが無効=自動選択が有効な場合のみ）
+                            if (!step.nonAutoSelect) {
                                 const optionsTextKey = createOptionsTextKey(step.options);
-                                optionTextHistory[optionsTextKey] = option.text;
-                                console.log(`テキスト履歴を記録: ${optionsTextKey} = ${option.text}`);
-                            } else {
-                                console.log(`自動選択が無効なため履歴を記録しません: ${step.id}`);
+                                optionSelectionHistory[optionsTextKey] = option.text;
                             }
                             
+                            // 次のステップへ進む
                             if (stepsData[option.next]) {
                                 storyHistory.push({ 
                                     stepId: option.next, 
-                                    chosenOption: null
+                                    chosenOption: null,
+                                    sequenceId: sequenceCounter++
                                 });
                             }
                             renderFlow();
@@ -340,11 +370,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                 } else {
                     btn.onclick = () => {
-                        storyHistory = storyHistory.slice(0, index + 1);
+                        // 現在のステップで選択を更新
+                        storyHistory[index].chosenOption = "次へ";
+                        
+                        // 次のステップへ進む
                         if (stepsData[step.defaultNext]) {
                             storyHistory.push({ 
                                 stepId: step.defaultNext, 
-                                chosenOption: null
+                                chosenOption: null,
+                                sequenceId: sequenceCounter++
                             });
                         }
                         renderFlow();
@@ -364,8 +398,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 初期化と各種イベントハンドラの設定
     function init() {
-        // 最初のステップを設定
-        storyHistory.push({ stepId: "1", chosenOption: null });
+        // 最初のステップを設定（シーケンス番号を追加）
+        sequenceCounter = 0;
+        storyHistory.push({ 
+            stepId: "1", 
+            chosenOption: null,
+            sequenceId: sequenceCounter++
+        });
         renderFlow();
 
         // ページ上部へ戻るボタン
@@ -403,8 +442,15 @@ document.addEventListener('DOMContentLoaded', function() {
         dropdownItems.forEach((item) => {
             item.onclick = (e) => {
                 const stepId = item.getAttribute("data-step");
+                // 履歴を完全にクリアして新しく開始
                 storyHistory = [];
-                storyHistory.push({ stepId: stepId, chosenOption: null });
+                optionSelectionHistory = {}; // 自動選択履歴もクリア
+                sequenceCounter = 0; // シーケンスカウンターもリセット
+                storyHistory.push({ 
+                    stepId: stepId, 
+                    chosenOption: null,
+                    sequenceId: sequenceCounter++
+                });
                 renderFlow();
                 dropdownMenu.style.display = "none";
             };
