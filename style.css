@@ -1,5 +1,6 @@
 body {
-    font-family: Arial, sans-serif;
+    /*font-family: Arial, sans-serif;  */
+    font-family: 'Yu Gothic', 'Meiryo', sans-serif;
     text-align: center;
     padding: 80px 20px;
     background: #f7f7f7;
@@ -56,6 +57,47 @@ body {
     background: #f0f0f0;
 }
 
+/* サブメニュー用のスタイル - ここに追加 */
+.dropdown-item.has-submenu {
+    position: relative;
+    cursor: pointer;
+}
+
+.dropdown-item.has-submenu::after {
+    content: "▶";
+    position: absolute;
+    right: 10px;
+    font-size: 0.8em;
+}
+
+.submenu {
+    position: absolute;
+    left: 100%;
+    top: 0;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    display: none;
+    min-width: 150px;
+    z-index: 1200;
+}
+
+.dropdown-item.has-submenu:hover .submenu {
+    display: block;
+}
+
+.submenu-item {
+    padding: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.submenu-item:hover {
+    background: #f0f0f0;
+}
+/* サブメニュー用のスタイル - ここまで */
+
 .header-center {
     font-size: 1.8em;
     font-weight: bold;
@@ -82,7 +124,7 @@ body {
 }
 
 .manual-container {
-    max-width: 720px;
+    max-width: 740px;
     margin: 0 auto;
 }
 
