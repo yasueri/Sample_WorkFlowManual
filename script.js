@@ -118,6 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!text) return "";
         let styled = text.replace(/\n/g, "<br>");
         styled = styled.replace(/要印刷/g, '<span style="color: red; font-weight: bold;">要印刷</span>');
+        styled = styled.replace(/画面/g, '<span style="color: red; font-weight: bold;">画面</span>');
         return styled;
     }
 
@@ -420,41 +421,82 @@ document.addEventListener('DOMContentLoaded', function() {
         // 警告ポップアップの閉じるボタン
         document.getElementById("warning-popup-ok").onclick = hideWarningPopup;
 
-        // ドロップダウンメニューの表示・非表示
-        const headerMenu = document.querySelector(".header-menu");
-        const dropdownMenu = document.getElementById("dropdown-menu");
+       // ドロップダウンメニューの表示・非表示
+const headerMenu = document.querySelector(".header-menu");
+const dropdownMenu = document.getElementById("dropdown-menu");
 
-        headerMenu.onclick = (e) => {
-            e.stopPropagation();
-            dropdownMenu.style.display =
-                dropdownMenu.style.display === "block" ? "none" : "block";
-        };
+headerMenu.onclick = (e) => {
+    e.stopPropagation();
+    dropdownMenu.style.display =
+        dropdownMenu.style.display === "block" ? "none" : "block";
+};
 
-        // ドキュメント全体をクリックしたらドロップダウンを閉じる
-        document.addEventListener("click", (e) => {
-            if (dropdownMenu.style.display === "block") {
-                dropdownMenu.style.display = "none";
-            }
+// ドロップダウンメニュー自体のクリックイベントを阻止
+dropdownMenu.addEventListener("click", (e) => {
+    e.stopPropagation();
+});
+
+// ドキュメント全体をクリックしたらドロップダウンを閉じる
+// ただし、ドロップダウンメニュー以外の領域がクリックされた場合のみ
+document.addEventListener("click", (e) => {
+    if (dropdownMenu.style.display === "block" && 
+        !dropdownMenu.contains(e.target) && 
+        !headerMenu.contains(e.target)) {
+        dropdownMenu.style.display = "none";
+    }
+});
+
+// ドロップダウンアイテムのクリックイベント
+const dropdownItems = document.querySelectorAll(".dropdown-item:not(.has-submenu)");
+dropdownItems.forEach((item) => {
+    item.onclick = (e) => {
+        e.stopPropagation(); // イベント伝播を防止
+        const stepId = item.getAttribute("data-step");
+        if (stepId) {
+            // 履歴を完全にクリアして新しく開始
+            storyHistory = [];
+            optionSelectionHistory = {}; // 自動選択履歴もクリア
+            sequenceCounter = 0; // シーケンスカウンターもリセット
+            storyHistory.push({ 
+                stepId: stepId, 
+                chosenOption: null,
+                sequenceId: sequenceCounter++
+            });
+            renderFlow();
+        }
+        // ドロップダウンメニューを非表示にする処理を削除
+        // dropdownMenu.style.display = "none"; この行を削除
+    };
+});
+
+// サブメニューアイテムのクリックイベント
+const submenuItems = document.querySelectorAll(".submenu-item");
+submenuItems.forEach((item) => {
+    item.onclick = (e) => {
+        e.stopPropagation(); // 親要素へのイベント伝播を防止
+        const stepId = item.getAttribute("data-step");
+        // 履歴を完全にクリアして新しく開始
+        storyHistory = [];
+        optionSelectionHistory = {}; // 自動選択履歴もクリア
+        sequenceCounter = 0; // シーケンスカウンターもリセット
+        storyHistory.push({ 
+            stepId: stepId, 
+            chosenOption: null,
+            sequenceId: sequenceCounter++
         });
+        renderFlow();
+        // dropdownMenu.style.display = "none"; この行を削除
+    };
+});
 
-        // ドロップダウンアイテムのクリックイベント
-        const dropdownItems = document.querySelectorAll(".dropdown-item");
-        dropdownItems.forEach((item) => {
-            item.onclick = (e) => {
-                const stepId = item.getAttribute("data-step");
-                // 履歴を完全にクリアして新しく開始
-                storyHistory = [];
-                optionSelectionHistory = {}; // 自動選択履歴もクリア
-                sequenceCounter = 0; // シーケンスカウンターもリセット
-                storyHistory.push({ 
-                    stepId: stepId, 
-                    chosenOption: null,
-                    sequenceId: sequenceCounter++
-                });
-                renderFlow();
-                dropdownMenu.style.display = "none";
-            };
-        });
+// サブメニューを持つドロップダウンアイテムのクリックイベント
+const hasSubmenuItems = document.querySelectorAll(".dropdown-item.has-submenu");
+hasSubmenuItems.forEach((item) => {
+    // クリックイベントを防止（そのままでは親メニュークリックで閉じてしまうため）
+    item.onclick = (e) => {
+        e.stopPropagation();
+    };
+});
     }
 
     // 初期化実行
