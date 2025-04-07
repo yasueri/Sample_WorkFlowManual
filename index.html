@@ -7,25 +7,62 @@
         body {
             font-family: sans-serif;
             text-align: center;
-            padding: 50px;
+            padding: 20px;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-sizing: border-box;
+            background-color: #f0f5f9; /* 薄い青灰色の背景 */
+            color: #2e3e50; /* ダークブルーのテキスト */
         }
         
         h1 {
-            margin-bottom: 50px;
+            margin-top: 0;
+            margin-bottom: 60px;
+            font-size: 36px;
+            color: #1a365d; /* 濃いめの青 */
         }
         
         .grid-container {
             display: grid;
-            grid-template-columns: repeat(2, 500px);
-            grid-gap: 50px;
+            grid-template-columns: repeat(2, 400px);
+            grid-gap: 30px 80px;
             justify-content: center;
+            max-width: 1800px;
+            margin: 0 auto;
         }
         
         .grid-container button {
-            width: 500px;
-            height: 200px;
-            font-size: 16px;
+            width: 100%;
+            height: 120px;
+            font-size: 24px;
             cursor: pointer;
+            border-radius: 8px;
+            border: none; /* ボーダーを削除 */
+            background-color: #e2e8f0; /* 薄いグレイッシュブルー */
+            color: #2c5282; /* 中程度の青 */
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* 軽い影をつける */
+        }
+        
+        .grid-container button:hover {
+            background-color: #bee3f8; /* ホバー時は明るい青 */
+            transform: translateY(-2px); /* 少し浮き上がる効果 */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .column-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-align: center;
+            padding: 10px;
+            background-color: #cbd5e0; /* グレイッシュブルー */
+            color: #2d3748; /* ダークグレイ */
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
         }
     </style>
 </head>
@@ -33,10 +70,20 @@
     <h1>業務フロー ナビゲーションシステム Ver0.3</h1>
     
     <div class="grid-container">
-        <button onclick="window.location.href='lt.html';">ピーチの凍結</button>
-        <button onclick="window.location.href='rt.html';">ベーコンの凍結</button>
-        <button>ピーチの解凍</button>
-        <button>ベーコンその他</button>
+        <div class="column-header">職人からの</div>
+        <div class="column-header">調理師、酒蔵技師からの</div>
+        
+        <button onclick="window.location.href='lt.html';">1-1</button>
+        <button onclick="window.location.href='rt.html';">2-1</button>
+        
+        <button>1-2</button>
+        <button>2-2</button>
+        
+        <button>1-3</button>
+        <button>2-3</button>
+        
+        <button>1-4</button>
+        <button>2-4</button>
     </div>
 </body>
 </html>
