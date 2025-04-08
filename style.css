@@ -160,6 +160,16 @@ body {
     text-align: left;
 }
 
+/* 補足説明１用のスタイル追加 */
+.story-nota {
+    font-size: 0.8em; /* 説明１より小さいフォントサイズ */
+    white-space: pre-wrap;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    color: #777; /* 少し薄い色にして区別をつける */
+    text-align: left;
+}
+
 .option-container {
     margin-top: 10px;
     display: flex;
