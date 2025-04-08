@@ -64,7 +64,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const id = row.StepID;
         const title = row.タイトル;
         let desc = "";
+        let nota = ""; // 補足説明１を格納する変数を追加
+        
         if (row.説明１) desc += row.説明１;
+        if (row.補足説明１) nota = row.補足説明１; // 補足説明１を取得
         if (row.説明２) desc += "\n" + row.説明２;
         if (row.説明３) desc += "\n" + row.説明３;
 
@@ -99,6 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
             id, 
             title, 
             desc, 
+            nota, // 補足説明１をステップデータに追加
             options, 
             defaultNext,
             // 自動選択が有効かどうかのフラグ（NonAutoSelectが1または真の場合は無効）
@@ -176,11 +180,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const noBtn = document.getElementById("popup-no");
 
         yesBtn.onclick = () => {
+            // 修正: 先に選択を更新してから履歴を初期化
+            // 理由: clearHistoryAfterIndex内で自動選択履歴が再構築される際に、
+            // 最新の選択が反映されるようにするため
+            storyHistory[index].chosenOption = optionText;
+            
             // 履歴を初期化（インデックスまで保持、以降をクリア＆自動選択履歴を再構築）
             clearHistoryAfterIndex(index);
-            
-            // 現在のステップの選択を更新
-            storyHistory[index].chosenOption = optionText;
             
             // 次のステップを追加
             if (stepsData[targetStep]) {
@@ -247,7 +253,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const descDiv = document.createElement("div");
             descDiv.className = "story-desc";
-            descDiv.innerHTML = styleDesc(step.desc);
+            
+            // 説明１と補足説明１を組み合わせて表示
+            let descHTML = styleDesc(step.desc);
+            if (step.nota) {
+                // 補足説明１が存在する場合、説明１の後に補足説明１を追加（小さいフォントサイズで）
+                descHTML += '<div class="story-nota">' + styleDesc(step.nota) + '</div>';
+            }
+            
+            descDiv.innerHTML = descHTML;
             section.appendChild(descDiv);
 
             // 自動選択メッセージの表示
