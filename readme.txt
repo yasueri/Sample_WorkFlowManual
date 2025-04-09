@@ -1,7 +1,7 @@
 ■構成メモ
 /WorkFlow
 │── index.html         # トップページのHTMLファイル。CSS・JavaScriptはhtmlファイルにまとめています
-│── 他のhtmlファイル    # メインコンテンツ。CSSはstyle.css、JavaScriptはscript.jsに記載
+│── 他のhtmlファイル    # メインコンテンツ
 │── style.css          # CSSファイル
 │── script.js          # JavaScriptファイル
 └── assets/            # 画像・マニュアル・その他のアセット　←現在、未実装
