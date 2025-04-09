@@ -1,7 +1,7 @@
 ■構成メモ
 /WorkFlow
 │── index.html              # トップページのHTMLファイル。CSS・JavaScriptはhtmlファイルにまとめています
-│── pages                   # メインコンテンツ。CSSはstyle.css、JavaScriptはscript.jsに記載
+│── pages                   # メインコンテンツ
 │   └── lt.html             # 暫定ファイル名
 │── css                     # CSSファイル
 │   ├──style.css            # メイン
