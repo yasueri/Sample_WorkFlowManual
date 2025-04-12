@@ -18,6 +18,10 @@ class KeyboardManager {
         // ポップアップのフォーカス状態 (0: なし, 1: はい, 2: いいえ)
         this.popupFocusButton = 0;
         
+        // フォーカス状態の履歴（ポップアップの「いいえ」ボタン対応用）
+        this.previousFocusElement = null;
+        this.previousFocusType = 'story';
+        
         // 初期状態ではドロップダウンメニューは非表示
         this.isDropdownVisible = false;
         
@@ -38,8 +42,6 @@ class KeyboardManager {
      * ポップアップの表示状態を監視するためのオブザーバーを設定
      */
     setupPopupObservers() {
-        console.log('Setting up popup observers...');
-        
         // 通常ポップアップの表示監視
         const popupOverlay = document.getElementById('popup-overlay');
         if (popupOverlay) {
@@ -48,12 +50,12 @@ class KeyboardManager {
                     if (mutation.type === 'attributes' && 
                         mutation.attributeName === 'style') {
                         
-                        // ポップアップの表示状態をコンソールに出力
-                        console.log('Popup style changed:', popupOverlay.style.display);
-                        
                         if (popupOverlay.style.display === 'flex') {
+                            // ポップアップが表示される前のフォーカス状態を保存
+                            this.previousFocusElement = document.querySelector('.keyboard-focus');
+                            this.previousFocusType = this.currentFocus.type;
+                            
                             // ポップアップが表示された時
-                            console.log('Popup is now visible');
                             this.currentFocus.type = 'popup';
                             
                             // 少し遅延させてフォーカスを設定
@@ -61,15 +63,27 @@ class KeyboardManager {
                                 // 初期状態ではフォーカスなし
                                 this.resetPopupFocus();
                                 
-                                // 左矢印キーイベントを発火して「はい」ボタンにフォーカス（自動フォーカス設定）
+                                // 「はい」ボタンにフォーカス（自動フォーカス設定）
                                 this.setPopupFocus(1);
                             }, 100);
                             
                         } else if (popupOverlay.style.display === 'none') {
                             // ポップアップが閉じられた時
-                            console.log('Popup is now hidden');
-                            this.currentFocus.type = 'story';
-                            this.updateFocus();
+                            
+                            // "いいえ"ボタンで閉じられた場合（popupFocusButton === 2）は以前のフォーカスに戻す
+                            if (this.popupFocusButton === 2 && this.previousFocusElement) {
+                                this.currentFocus.type = this.previousFocusType;
+                                // すべてのフォーカスをクリア
+                                document.querySelectorAll('.keyboard-focus').forEach(el => {
+                                    el.classList.remove('keyboard-focus');
+                                });
+                                // 以前のフォーカス要素にフォーカスを適用
+                                this.previousFocusElement.classList.add('keyboard-focus');
+                            } else {
+                                // "はい"ボタンで閉じられた場合は通常通り最新セクションに戻る
+                                this.currentFocus.type = 'story';
+                                this.updateFocus();
+                            }
                         }
                     }
                 });
@@ -77,11 +91,14 @@ class KeyboardManager {
             
             // オブザーバーを開始
             popupObserver.observe(popupOverlay, { attributes: true });
-            console.log('Popup observer started');
         } else {
             console.warn('Popup overlay element not found');
         }
         
+
+
+
+
         // 警告ポップアップの表示監視
         const warningPopup = document.getElementById('warning-popup-overlay');
         if (warningPopup) {
@@ -92,15 +109,22 @@ class KeyboardManager {
                         
                         if (warningPopup.style.display === 'flex') {
                             // 警告ポップアップが表示された時
-                            console.log('Warning popup is now visible');
                             this.currentFocus.type = 'warning';
                             const okButton = document.getElementById('warning-popup-ok');
                             if (okButton) {
                                 okButton.classList.add('keyboard-focus');
                             }
+                            
+                            // 処理中フラグを設定
+                            this.isProcessingInput = true;
+                            
+                            // 処理完了後にフラグをリセット
+                            setTimeout(() => {
+                                this.isProcessingInput = false;
+                            }, 150);
+                            
                         } else if (warningPopup.style.display === 'none' || warningPopup.style.display === '') {
                             // 警告ポップアップが閉じられた時
-                            console.log('Warning popup is now hidden');
                             // フォーカスをストーリーに戻す
                             this.currentFocus.type = 'story';
                             // フォーカスを更新
@@ -112,7 +136,6 @@ class KeyboardManager {
             
             // オブザーバーを開始
             warningObserver.observe(warningPopup, { attributes: true });
-            console.log('Warning popup observer started');
         }
     }
     
@@ -137,8 +160,6 @@ class KeyboardManager {
         const yesButton = document.getElementById('popup-yes');
         const noButton = document.getElementById('popup-no');
         
-        console.log(`Setting popup focus to button ${buttonIndex}`);
-        
         // すべてのフォーカスをクリア
         if (yesButton) yesButton.classList.remove('keyboard-focus');
         if (noButton) noButton.classList.remove('keyboard-focus');
@@ -146,26 +167,21 @@ class KeyboardManager {
         if (buttonIndex === 1 && yesButton) {
             yesButton.classList.add('keyboard-focus');
             this.popupFocusButton = 1;
-            console.log('Focus set to YES button');
         } else if (buttonIndex === 2 && noButton) {
             noButton.classList.add('keyboard-focus');
             this.popupFocusButton = 2;
-            console.log('Focus set to NO button');
         } else {
             this.popupFocusButton = 0;
-            console.log('Popup focus reset (no focus)');
         }
     }
     
     /**
-     * キーボードイベントのハンドラー
+     * キーボードイベントのハンドラー（シンプル改善版）
      * @param {KeyboardEvent} event キーボードイベント
      */
     handleKeyPress(event) {
         // テンキーのキーコードを取得
         const key = event.key;
-        
-        console.log(`Key pressed: ${key}, Current focus type: ${this.currentFocus.type}`);
         
         // 現在表示されているポップアップを確認
         const popupOverlay = document.getElementById('popup-overlay');
@@ -173,17 +189,25 @@ class KeyboardManager {
         const isPopupVisible = popupOverlay && popupOverlay.style.display === 'flex';
         const isWarningVisible = warningPopup && warningPopup.style.display === 'flex';
         
+        // ポップアップ関連の処理のみ入力フラグを使用
+        if ((this.currentFocus.type === 'popup' || isPopupVisible || 
+             this.currentFocus.type === 'warning' || isWarningVisible) && 
+            this.isProcessingInput) {
+            // ポップアップ処理中はキー入力を無視
+            return;
+        }
+        
         // ポップアップ表示状態と内部状態が一致しない場合は修正
         if (isPopupVisible && this.currentFocus.type !== 'popup') {
-            console.log('Correcting focus type to popup');
             this.currentFocus.type = 'popup';
         } else if (isWarningVisible && this.currentFocus.type !== 'warning') {
-            console.log('Correcting focus type to warning');
             this.currentFocus.type = 'warning';
         }
         
         // ポップアップ表示中の処理
         if (this.currentFocus.type === 'popup' || isPopupVisible) {
+            // ポップアップ処理の場合のみフラグを使用
+            this.isProcessingInput = true;
             this.handlePopupKeyPress(key, event);
             return;
         }
@@ -191,6 +215,8 @@ class KeyboardManager {
         // 警告ポップアップ表示中の処理
         if (this.currentFocus.type === 'warning' || isWarningVisible) {
             if (key === 'Enter' || key === 'Escape' || key === '1' || key === '2' || key === '3') {
+                // 警告ポップアップ処理の場合のみフラグを使用
+                this.isProcessingInput = true;
                 // 了解ボタンクリック
                 const okButton = document.getElementById('warning-popup-ok');
                 if (okButton) {
@@ -200,7 +226,9 @@ class KeyboardManager {
                     // 少し遅延させてからフォーカスを更新
                     setTimeout(() => {
                         this.updateFocus();
-                    }, 100);
+                        // 遅延処理が完了したらフラグをリセット
+                        this.isProcessingInput = false;
+                    }, 150);
                     event.preventDefault();
                 }
                 return;
@@ -208,7 +236,7 @@ class KeyboardManager {
             return;
         }
         
-        // フォーカスタイプに応じた処理
+        // メニュー移動の場合はフラグを使わず即時に処理（これが改善点）
         switch(this.currentFocus.type) {
             case 'story':
                 this.handleStoryKeyPress(key);
@@ -231,20 +259,26 @@ class KeyboardManager {
         const popupYes = document.getElementById('popup-yes');
         const popupNo = document.getElementById('popup-no');
         
-        console.log(`Handling popup key: ${key}, current focus: ${this.popupFocusButton}`);
-        
         switch(key) {
             case 'ArrowLeft':
             case '4':  // テンキー4（左）を追加
                 // 左矢印キー - 「はい」ボタンにフォーカス
                 this.setPopupFocus(1);
                 event.preventDefault();
+                // 単純なフォーカス移動なのでフラグをリセット
+                setTimeout(() => {
+                    this.isProcessingInput = false;
+                }, 50);
                 break;
             case 'ArrowRight':
             case '6':  // テンキー6（右）を追加
                 // 右矢印キー - 「いいえ」ボタンにフォーカス
                 this.setPopupFocus(2);
                 event.preventDefault();
+                // 単純なフォーカス移動なのでフラグをリセット
+                setTimeout(() => {
+                    this.isProcessingInput = false;
+                }, 50);
                 break;
             case '1':
             case 'y':
@@ -252,9 +286,11 @@ class KeyboardManager {
                 this.setPopupFocus(1);
                 setTimeout(() => {
                     if (popupYes) popupYes.click();
-                }, 100);
+                    // 処理完了後にフラグをリセット
+                    this.isProcessingInput = false;
+                }, 150); // 元の100msより少し長く
                 event.preventDefault();
-                break;
+                return; // 早期リターンでfinallyブロックのリセットを回避
             case '3':
             case 'n':
             case 'Escape':
@@ -262,22 +298,36 @@ class KeyboardManager {
                 this.setPopupFocus(2);
                 setTimeout(() => {
                     if (popupNo) popupNo.click();
-                }, 100);
+                    // 処理完了後にフラグをリセット
+                    this.isProcessingInput = false;
+                }, 150); // 元の100msより少し長く
                 event.preventDefault();
-                break;
+                return; // 早期リターンでfinallyブロックのリセットを回避
             case 'Enter':
             case ' ':
                 // Enterキーまたはスペース - フォーカスがある場合のみ選択
-                console.log(`Enter pressed with focus: ${this.popupFocusButton}`);
                 if (this.popupFocusButton === 1 && popupYes) {
                     popupYes.click();
                     event.preventDefault();
+                    // 処理後にフラグをリセット
+                    setTimeout(() => {
+                        this.isProcessingInput = false;
+                    }, 150);
+                    return;
                 } else if (this.popupFocusButton === 2 && popupNo) {
                     popupNo.click();
                     event.preventDefault();
+                    // 処理後にフラグをリセット
+                    setTimeout(() => {
+                        this.isProcessingInput = false;
+                    }, 150);
+                    return;
                 }
                 break;
         }
+        
+        // デフォルトでは即時にフラグをリセット
+        this.isProcessingInput = false;
     }
     
     /**
@@ -427,8 +477,22 @@ class KeyboardManager {
         
         switch(key) {
             case '7':
-                // サブメニューを閉じてドロップダウンに戻る
-                this.closeSubmenu();
+                // サブメニューを閉じてストーリーに直接戻る（変更部分）
+                // サブメニューを非表示
+                const submenu = document.querySelector(`.dropdown-item:nth-child(${this.currentFocus.parentIndex + 1}) .submenu`);
+                if (submenu) {
+                    submenu.style.display = '';
+                }
+                
+                // ドロップダウンメニューも閉じる
+                this.closeDropdownMenu();
+                
+                // フォーカスをストーリーに直接戻す
+                this.currentFocus.type = 'story';
+                this.currentFocus.parentIndex = -1;
+                this.currentFocus.submenuName = '';
+                
+                this.updateFocus();
                 break;
             case '8':
                 // 上カーソル - 前のアイテムにフォーカス
@@ -469,12 +533,22 @@ class KeyboardManager {
             return;
         }
         
-        // 現在のステップのオプションボタンまたは次へボタンを取得
-        const currentSection = document.querySelector('.story-section.current');
-        if (!currentSection) return;
+        // フォーカスがあるセクションを見つける（現在のセクションに限定しない）
+        const focusedElement = document.querySelector('.keyboard-focus');
+        let targetSection;
         
-        // すべてのボタンを取得
-        const buttons = currentSection.querySelectorAll('.option-button, .next-button');
+        if (focusedElement) {
+            targetSection = focusedElement.closest('.story-section');
+        }
+        
+        // フォーカス要素がなければ現在のセクションを使用
+        if (!targetSection) {
+            targetSection = document.querySelector('.story-section.current');
+            if (!targetSection) return;
+        }
+        
+        // 特定したセクション内の全てのボタンを取得
+        const buttons = targetSection.querySelectorAll('.option-button, .next-button');
         if (!buttons.length) return;
         
         // 現在フォーカスのあるボタンを探す
@@ -603,17 +677,28 @@ class KeyboardManager {
     
     /**
      * オプションを番号で選択
-     * @param {number} optionNumber 選択するオプション番号
-     */
+    * @param {number} optionNumber 選択するオプション番号
+    */
     selectOptionByNumber(optionNumber) {
-        const currentSection = document.querySelector('.story-section.current');
-        if (!currentSection) return;
+        // フォーカスがあるセクションを見つける（現在のセクションに限定しない）
+        const focusedElement = document.querySelector('.keyboard-focus');
+        let targetSection;
+        
+        if (focusedElement) {
+            targetSection = focusedElement.closest('.story-section');
+        }
+        
+        // フォーカス要素がなければ現在のセクションを使用
+        if (!targetSection) {
+            targetSection = document.querySelector('.story-section.current');
+            if (!targetSection) return;
+        }
         
         // オプションボタンを取得
-        const optionButtons = currentSection.querySelectorAll('.option-button');
+        const optionButtons = targetSection.querySelectorAll('.option-button');
         
         // 次へボタンを取得
-        const nextButton = currentSection.querySelector('.next-button');
+        const nextButton = targetSection.querySelector('.next-button');
         
         // 次へボタンがある場合は、1,2,3のいずれでも選択可能
         if (nextButton && (optionNumber === 1 || optionNumber === 2 || optionNumber === 3)) {
@@ -746,8 +831,6 @@ class KeyboardManager {
      * フォーカスを更新
      */
     updateFocus() {
-        console.log(`Updating focus for type: ${this.currentFocus.type}`);
-        
         // すべてのフォーカスをクリア
         document.querySelectorAll('.keyboard-focus').forEach(el => {
             el.classList.remove('keyboard-focus');
@@ -850,7 +933,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 少し遅延してからフォーカスを更新
                 setTimeout(() => {
                     window.keyboardManager.updateFocus();
-                }, 100);
+                    // 処理完了後にフラグをリセット
+                    window.keyboardManager.isProcessingInput = false;
+                }, 150);
+                // 処理中フラグを設定
+                window.keyboardManager.isProcessingInput = true;
             }
         });
     }
@@ -858,7 +945,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // ポップアップ表示監視の初期化を確認
     setTimeout(() => {
         if (window.keyboardManager) {
-            console.log('Checking popup observers...');
             // 念のためにもう一度ポップアップ監視を設定
             window.keyboardManager.setupPopupObservers();
         }
