@@ -286,6 +286,12 @@ body {
     text-align: left;
 }
 
+/* CSVキーワード強調用のスタイル */
+.csv-text-highlight {
+    color: red;
+    /*font-weight: bold;*/
+}
+
 /* 補足説明１用のスタイル追加 */
 .story-nota {
     font-size: 0.8em; /* 説明１より小さいフォントサイズ */
