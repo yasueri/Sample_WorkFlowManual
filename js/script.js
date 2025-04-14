@@ -3,8 +3,38 @@ document.addEventListener('DOMContentLoaded', function() {
     // HTMLから埋め込まれたCSVデータを取得
     const csvData = window.csvData || "";
     
+    // CSVの安全性を検証する関数
+    function validateCsvSafety(csvText) {
+        // 潜在的な危険パターンのチェック
+        const dangerPatterns = [
+            /<script/i,
+            /javascript:/i,
+            /data:text\/html/i,
+            /function\(\)/i,
+            /eval\(/i,
+            /setTimeout\(/i,
+            /setInterval\(/i
+        ];
+        
+        // いずれかのパターンにマッチする場合は警告
+        const foundPattern = dangerPatterns.find(pattern => pattern.test(csvText));
+        if (foundPattern) {
+            console.warn("CSVデータに潜在的な危険パターンが見つかりました。処理を続行する前に内容を確認してください。");
+            return false;
+        }
+        
+        return true;
+    }
+
     // CSVパース関数（より厳密なバージョン）
     function parseCSV(csvText) {
+        // 事前に安全性を検証
+        if (!validateCsvSafety(csvText)) {
+            // 安全でない場合は空の配列を返す
+            console.error("CSVデータに危険なパターンが含まれているため、処理を中止します。");
+            return [];
+        }
+
         const rows = [];
         let currentRow = [];
         let currentField = "";
@@ -44,10 +74,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return rows;
     }
 
-    // 入力を安全にサニタイズする関数
-    function sanitizeInput(input) {
-        // 基本的な文字列化
-        input = String(input || "");
+    // 強化されたサニタイズ関数
+    function enhancedSanitizeInput(input) {
+        if (input === null || input === undefined) return "";
+        
+        // 文字列化
+        input = String(input);
         
         // HTML特殊文字のエスケープ
         input = input
@@ -57,34 +89,109 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
         
-        // スクリプトインジェクション対策
+        // スクリプトインジェクション対策（強化版）
         input = input
             .replace(/javascript:/gi, '')
             .replace(/data:/gi, '')
-            .replace(/vbscript:/gi, '');
+            .replace(/vbscript:/gi, '')
+            .replace(/expression:/gi, '')  // CSSインジェクション対策を追加
+            .replace(/eval\(/gi, '')       // eval呼び出し対策を追加
+            .replace(/prompt\(/gi, '')     // ブラウザプロンプト対策
+            .replace(/alert\(/gi, '');     // アラート対策
         
-        // イベントハンドラ削除
-        input = input.replace(/on\w+=/gi, '');
+        // イベントハンドラと危険な属性の徹底的な除去
+        input = input.replace(/on\w+\s*=|\w+:\s*url\s*\(/gi, '');
         
         return input;
     }
 
+    // 安全なHTML描画関数
+    function renderSafeHtml(unsafeContent) {
+        if (!unsafeContent) return "";
+        
+        // まずコンテンツをサニタイズ
+        const sanitized = enhancedSanitizeInput(unsafeContent);
+        
+        // 改行のみを特別扱い
+        const withLineBreaks = sanitized.replace(/\n/g, "<br>");
+        
+        // 限定的な置換のみを行う
+        const withHighlights = withLineBreaks
+            .replace(/要印刷/g, '<span class="csv-text-highlight">要印刷</span>')
+            .replace(/画面/g, '<span class="csv-text-highlight">画面</span>');
+        
+        return withHighlights;
+    }
+
     // CSVデータの処理
-    const csvRows = parseCSV(csvData);
-    const headers = csvRows[0] ? csvRows[0].map(h => h.trim()) : [];
-    const rows = csvRows.slice(1);
-    const data = rows.map(row => {
-        const obj = {};
-        headers.forEach((header, index) => {
-            obj[header] = index < row.length ? row[index].trim() : "";
-        });
-        return obj;
-    });
+    let isDataValid = false;
+    let csvRows = [];
+    let headers = [];
+    let data = [];
+
+    try {
+        // CSVデータの安全性を検証してからパース
+        if (validateCsvSafety(csvData)) {
+            csvRows = parseCSV(csvData);
+            headers = csvRows[0] ? csvRows[0].map(h => h.trim()) : [];
+            const rows = csvRows.slice(1);
+            data = rows.map(row => {
+                const obj = {};
+                headers.forEach((header, index) => {
+                    obj[header] = index < row.length ? row[index].trim() : "";
+                });
+                return obj;
+            });
+        } else {
+            // 安全でない場合は処理を停止
+            showValidationResults(
+                ["CSVデータに潜在的に危険なコンテンツが含まれています。データを確認してください。"], 
+                []
+            );
+            data = []; // 空のデータを設定
+        }
+    } catch (error) {
+        console.error("CSVデータの処理中にエラーが発生しました:", error);
+        data = []; // エラー時は空のデータを設定
+        showValidationResults(
+            ["CSVデータの処理中にエラーが発生しました: " + error.message], 
+            []
+        );
+    }
 
     // StepIDの設定に問題がないかチェック
     function validateCsvData(data) {
         const errors = [];
         const warnings = [];
+        
+        // データが空の場合は検証エラー
+        if (!data || data.length === 0) {
+            errors.push("CSVデータが空または無効です");
+            return { errors, warnings, isValid: false };
+        }
+        
+        // 必須フィールドの存在確認
+        const requiredFields = ["StepID", "タイトル"];
+        const firstRow = data[0] || {};
+        const availableFields = Object.keys(firstRow);
+        
+        requiredFields.forEach(field => {
+            if (!availableFields.includes(field)) {
+                errors.push(`必須フィールド "${field}" がCSVデータに存在しません`);
+            }
+        });
+        
+        // StepIDの一意性チェック
+        const stepIds = {};
+        data.forEach((row, index) => {
+            if (!row.StepID) return; // 空行はスキップ
+            
+            if (stepIds[row.StepID]) {
+                errors.push(`重複するStepID "${row.StepID}" が行 ${index + 2} で見つかりました`);
+            } else {
+                stepIds[row.StepID] = true;
+            }
+        });
         
         // すべてのステップIDを収集して、参照先の存在をチェックできるようにする
         const allStepIds = new Set(data.map(row => row.StepID).filter(id => id));
@@ -117,21 +224,16 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (row.Option3Next && !allStepIds.has(row.Option3Next)) {
                 warnings.push(`ステップ ${row.StepID}: 選択肢「${row.Option3Text}」が無効なステップ "${row.Option3Next}" を指しています`);
             }
-            
-            /* 出口がないステップのチェックをコメントアウト。
-            　　最後のステップの場合もあるため。
-            　　最後かどうかを判定するロジックの導入は、逆にcsv入力が面倒になりそうなので見送ることにした。
-            // 出口がないステップのチェック（デッドエンド）
-            if (!row.DefaultNext && !row.Option1Next && !row.Option2Next && !row.Option3Next) {
-                warnings.push(`ステップ ${row.StepID}: 次に進むステップが指定されていません（行き止まり）`);
-            }
-            */
         });
         
         // ユーザーフレンドリーなポップアップで通知
         showValidationResults(errors, warnings);
         
-        return errors.length === 0; // エラーがなければtrue
+        return { 
+            errors, 
+            warnings, 
+            isValid: errors.length === 0 
+        };
     }
     
     // ポップアップ表示関数（StepIDの設定に問題があった時のために）
@@ -186,24 +288,42 @@ document.addEventListener('DOMContentLoaded', function() {
         // エラーの表示
         if (errors.length > 0) {
             const errorsList = document.createElement('div');
-            errorsList.innerHTML = `
-                <p style="color: #d9534f; font-weight: bold;">次のエラーを修正してください:</p>
-                <ul style="color: #d9534f; text-align: left; margin-bottom: 15px;">
-                    ${errors.map(err => `<li>${sanitizeInput(err)}</li>`).join('')}
-                </ul>
-            `;
+            const errorTitle = document.createElement('p');
+            errorTitle.style.cssText = "color: #d9534f; font-weight: bold;";
+            errorTitle.textContent = "次のエラーを修正してください:";
+            errorsList.appendChild(errorTitle);
+            
+            const ul = document.createElement('ul');
+            ul.style.cssText = "color: #d9534f; text-align: left; margin-bottom: 15px;";
+            
+            errors.forEach(err => {
+                const li = document.createElement('li');
+                li.textContent = err; // textContentを使用して安全に設定
+                ul.appendChild(li);
+            });
+            
+            errorsList.appendChild(ul);
             messageArea.appendChild(errorsList);
         }
         
         // 警告の表示
         if (warnings.length > 0) {
             const warningsList = document.createElement('div');
-            warningsList.innerHTML = `
-                <p style="color: #f0ad4e; font-weight: bold;">注意事項:</p>
-                <ul style="color: #f0ad4e; text-align: left;">
-                    ${warnings.map(warn => `<li>${sanitizeInput(warn)}</li>`).join('')}
-                </ul>
-            `;
+            const warningTitle = document.createElement('p');
+            warningTitle.style.cssText = "color: #f0ad4e; font-weight: bold;";
+            warningTitle.textContent = "注意事項:";
+            warningsList.appendChild(warningTitle);
+            
+            const ul = document.createElement('ul');
+            ul.style.cssText = "color: #f0ad4e; text-align: left;";
+            
+            warnings.forEach(warn => {
+                const li = document.createElement('li');
+                li.textContent = warn; // textContentを使用して安全に設定
+                ul.appendChild(li);
+            });
+            
+            warningsList.appendChild(ul);
             messageArea.appendChild(warningsList);
         }
         
@@ -251,65 +371,77 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 実際に検証を実行
-    const isDataValid = validateCsvData(data);
+    const validationResult = validateCsvData(data);
+    isDataValid = validationResult.isValid;
 
     // ステップデータの構造化（エラーがなければ処理を続行）
     const stepsData = {};
     if (isDataValid) {
-        data.forEach(row => {
-            if (!row.StepID) return; // 空行をスキップ
-            
-            const id = row.StepID;
-            const title = row.タイトル;
-            let desc = "";
-            let nota = ""; // 補足説明１を格納する変数を追加
-            
-            if (row.説明１) desc += row.説明１;
-            if (row.補足説明１) nota = row.補足説明１; // 補足説明１を取得
-            if (row.説明２) desc += "\n" + row.説明２;
-            if (row.説明３) desc += "\n" + row.説明３;
+        try {
+            data.forEach(row => {
+                if (!row.StepID) return; // 空行をスキップ
+                
+                const id = row.StepID;
+                const title = row.タイトル;
+                let desc = "";
+                let nota = ""; // 補足説明１を格納する変数を追加
+                
+                if (row.説明１) desc += row.説明１;
+                if (row.補足説明１) nota = row.補足説明１; // 補足説明１を取得
+                if (row.説明２) desc += "\n" + row.説明２;
+                if (row.説明３) desc += "\n" + row.説明３;
 
-            const options = [];
-            if (row.Option1Text && row.Option1Next) {
-                options.push({
-                    text: row.Option1Text,
-                    next: row.Option1Next.replace(/to\s*/, "")
-                });
-            }
-            if (row.Option2Text && row.Option2Next) {
-                options.push({
-                    text: row.Option2Text,
-                    next: row.Option2Next.replace(/to\s*/, "")
-                });
-            }
-            // 3つ目の選択肢に対応（新規追加）
-            if (row.Option3Text && row.Option3Next) {
-                options.push({
-                    text: row.Option3Text,
-                    next: row.Option3Next.replace(/to\s*/, "")
-                });
-            }
+                const options = [];
+                if (row.Option1Text && row.Option1Next) {
+                    options.push({
+                        text: row.Option1Text,
+                        next: row.Option1Next.replace(/to\s*/, "")
+                    });
+                }
+                if (row.Option2Text && row.Option2Next) {
+                    options.push({
+                        text: row.Option2Text,
+                        next: row.Option2Next.replace(/to\s*/, "")
+                    });
+                }
+                // 3つ目の選択肢に対応（新規追加）
+                if (row.Option3Text && row.Option3Next) {
+                    options.push({
+                        text: row.Option3Text,
+                        next: row.Option3Next.replace(/to\s*/, "")
+                    });
+                }
 
-            const defaultNext = row.DefaultNext || "";
-            
-            // NonAutoSelect フラグを取得 - 明示的に "1" または "true" の場合のみ自動選択を無効にする
-            const nonAutoSelectValue = row.NonAutoSelect ? row.NonAutoSelect.trim() : "";
-            const nonAutoSelect = nonAutoSelectValue === "1" || nonAutoSelectValue.toLowerCase() === "true";
-            
-            stepsData[id] = { 
-                id, 
-                title, 
-                desc, 
-                nota, // 補足説明１をステップデータに追加
-                options, 
-                defaultNext,
-                // 自動選択が有効かどうかのフラグ（NonAutoSelectが1または真の場合は無効）
-                nonAutoSelect: nonAutoSelect
-            };
-        });
-    } else {
+                const defaultNext = row.DefaultNext || "";
+                
+                // NonAutoSelect フラグを取得 - 明示的に "1" または "true" の場合のみ自動選択を無効にする
+                const nonAutoSelectValue = row.NonAutoSelect ? row.NonAutoSelect.trim() : "";
+                const nonAutoSelect = nonAutoSelectValue === "1" || nonAutoSelectValue.toLowerCase() === "true";
+                
+                stepsData[id] = { 
+                    id, 
+                    title, 
+                    desc, 
+                    nota, // 補足説明１をステップデータに追加
+                    options, 
+                    defaultNext,
+                    // 自動選択が有効かどうかのフラグ（NonAutoSelectが1または真の場合は無効）
+                    nonAutoSelect: nonAutoSelect
+                };
+            });
+        } catch (error) {
+            console.error("ステップデータの構造化中にエラーが発生しました:", error);
+            showValidationResults(
+                ["ステップデータの処理中にエラーが発生しました: " + error.message], 
+                []
+            );
+            isDataValid = false;
+        }
+    }
+
+    // データが無効な場合、最低限の初期データを設定
+    if (!isDataValid || Object.keys(stepsData).length === 0) {
         console.warn("エラーがあるためステップデータの構造化をスキップしました");
-        // 最低限の初期データを設定して、アプリがクラッシュしないようにする
         stepsData["1"] = {
             id: "1",
             title: "エラー",
@@ -330,17 +462,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // スタイリング適用関数の改善 - セキュリティ対策を強化
     function styleDesc(text) {
-        if (!text) return "";
-        
-        // まずサニタイズ - この処理が確実に行われることが重要
-        let sanitized = sanitizeInput(text);
-        
-        // 改行とキーワードの処理
-        let styled = sanitized.replace(/\n/g, "<br>");
-        styled = styled.replace(/要印刷/g, '<span class="csv-text-highlight">要印刷</span>');
-        styled = styled.replace(/画面/g, '<span class="csv-text-highlight">画面</span>');
-        
-        return styled;
+        return renderSafeHtml(text);
     }
 
     // 現在のセクションへスクロール
@@ -446,137 +568,175 @@ document.addEventListener('DOMContentLoaded', function() {
     // フローのレンダリング - セキュリティ対策強化
     function renderFlow() {
         const container = document.getElementById("story-container");
-        container.innerHTML = "";
+        
+        // 安全にコンテナをクリア
+        while (container.firstChild) {
+            container.removeChild(container.firstChild);
+        }
 
-        storyHistory.forEach((entry, index) => {
-            const step = stepsData[entry.stepId];
-            if (!step) {
-                console.error(`StepID ${entry.stepId} not found in stepsData`);
-                return;
-            }
-            
-            const section = document.createElement("div");
-            section.classList.add("story-section");
-            section.classList.add(
-                index === storyHistory.length - 1 ? "current" : "past"
-            );
+        try {
+            storyHistory.forEach((entry, index) => {
+                const step = stepsData[entry.stepId];
+                if (!step) {
+                    console.error(`StepID ${entry.stepId} not found in stepsData`);
+                    return;
+                }
+                
+                const section = document.createElement("div");
+                section.classList.add("story-section");
+                section.classList.add(
+                    index === storyHistory.length - 1 ? "current" : "past"
+                );
 
-            if (step.title) {
-                const titleDiv = document.createElement("div");
-                titleDiv.className = "story-title";
-                titleDiv.innerHTML = styleDesc(step.title);
-                section.appendChild(titleDiv);
-            }
+                if (step.title) {
+                    const titleDiv = document.createElement("div");
+                    titleDiv.className = "story-title";
+                    titleDiv.innerHTML = styleDesc(step.title);
+                    section.appendChild(titleDiv);
+                }
 
-            const descDiv = document.createElement("div");
-            descDiv.className = "story-desc";
-            
-            // 説明１と補足説明１を組み合わせて表示
-            let descHTML = styleDesc(step.desc);
-            
-            // 説明本文を設定
-            descDiv.innerHTML = descHTML;
-            section.appendChild(descDiv);
-            
-            // 補足説明があれば、別の要素として追加
-            if (step.nota) {
-                const notaDiv = document.createElement("div");
-                notaDiv.className = "story-nota";
-                notaDiv.innerHTML = styleDesc(step.nota);
-                section.appendChild(notaDiv);
-            }
+                const descDiv = document.createElement("div");
+                descDiv.className = "story-desc";
+                
+                // 説明１と補足説明１を組み合わせて表示
+                descDiv.innerHTML = styleDesc(step.desc);
+                section.appendChild(descDiv);
+                
+                // 補足説明があれば、別の要素として追加
+                if (step.nota) {
+                    const notaDiv = document.createElement("div");
+                    notaDiv.className = "story-nota";
+                    notaDiv.innerHTML = styleDesc(step.nota);
+                    section.appendChild(notaDiv);
+                }
 
-            // 自動選択メッセージの表示
-            if (entry.autoSelected) {
-                const autoSelectMessage = document.createElement("div");
-                autoSelectMessage.innerHTML = '<p style="color:#007acc;font-weight:bold;margin:10px 0;">※前回と同じ選択肢が自動選択されました</p>';
-                section.appendChild(autoSelectMessage);
-            }
+                // 自動選択メッセージの表示
+                if (entry.autoSelected) {
+                    const autoSelectMessage = document.createElement("div");
+                    autoSelectMessage.innerHTML = '<p style="color:#007acc;font-weight:bold;margin:10px 0;">※前回と同じ選択肢が自動選択されました</p>';
+                    section.appendChild(autoSelectMessage);
+                }
 
-            const optionsDiv = document.createElement("div");
-            optionsDiv.className = "option-container";
+                const optionsDiv = document.createElement("div");
+                optionsDiv.className = "option-container";
 
-            // 最後のステップで、かつ選択肢がある場合の処理
-            if (index === storyHistory.length - 1 && step.options.length > 0) {
-                // 自動選択が有効な場合のみ処理（nonAutoSelectが無効の場合）
-                if (!step.nonAutoSelect) {
-                    // 選択肢のテキストのみに基づいてキーを作成
-                    const optionsTextKey = createOptionsTextKey(step.options);
-                    
-                    // この選択肢のテキスト組み合わせが過去にあり、かつまだ選択が行われていない場合
-                    if (optionSelectionHistory[optionsTextKey] && !entry.chosenOption) {
-                        // 過去の選択を取得
-                        const pastChoice = optionSelectionHistory[optionsTextKey];
+                // 最後のステップで、かつ選択肢がある場合の処理
+                if (index === storyHistory.length - 1 && step.options.length > 0) {
+                    // 自動選択が有効な場合のみ処理（nonAutoSelectが無効の場合）
+                    if (!step.nonAutoSelect) {
+                        // 選択肢のテキストのみに基づいてキーを作成
+                        const optionsTextKey = createOptionsTextKey(step.options);
                         
-                        // 対応する選択肢とターゲットステップを検索
-                        const matchedOption = step.options.find(option => option.text === pastChoice);
-                        
-                        if (matchedOption) {
-                            // 自動選択のメッセージを表示
-                            const autoSelectMessage = document.createElement("div");
-                            autoSelectMessage.innerHTML = '<p style="color:#007acc;font-weight:bold;margin:10px 0;">※前回と同じ選択肢が自動選択されました</p>';
-                            section.appendChild(autoSelectMessage);
+                        // この選択肢のテキスト組み合わせが過去にあり、かつまだ選択が行われていない場合
+                        if (optionSelectionHistory[optionsTextKey] && !entry.chosenOption) {
+                            // 過去の選択を取得
+                            const pastChoice = optionSelectionHistory[optionsTextKey];
                             
-                            // 自動的に選択を適用
-                            entry.chosenOption = pastChoice;
-                            entry.autoSelected = true;
+                            // 対応する選択肢とターゲットステップを検索
+                            const matchedOption = step.options.find(option => option.text === pastChoice);
                             
-                            // 次のステップに進む（遅延を設定して画面表示後に実行）
-                            setTimeout(() => {
-                                if (stepsData[matchedOption.next]) {
-                                    storyHistory.push({ 
-                                        stepId: matchedOption.next, 
-                                        chosenOption: null,
-                                        sequenceId: sequenceCounter++
-                                    });
-                                    renderFlow();
-                                    scrollToCurrent();
-                                }
-                            }, 1500); // 1.5秒後に次に進む
+                            if (matchedOption) {
+                                // 自動選択のメッセージを表示
+                                const autoSelectMessage = document.createElement("div");
+                                autoSelectMessage.innerHTML = '<p style="color:#007acc;font-weight:bold;margin:10px 0;">※前回と同じ選択肢が自動選択されました</p>';
+                                section.appendChild(autoSelectMessage);
+                                
+                                // 自動的に選択を適用
+                                entry.chosenOption = pastChoice;
+                                entry.autoSelected = true;
+                                
+                                // 次のステップに進む（遅延を設定して画面表示後に実行）
+                                setTimeout(() => {
+                                    if (stepsData[matchedOption.next]) {
+                                        storyHistory.push({ 
+                                            stepId: matchedOption.next, 
+                                            chosenOption: null,
+                                            sequenceId: sequenceCounter++
+                                        });
+                                        renderFlow();
+                                        scrollToCurrent();
+                                    }
+                                }, 1500); // 1.5秒後に次に進む
+                            }
                         }
                     }
                 }
-            }
 
-            if (step.options.length > 0) {
-                step.options.forEach(option => {
+                if (step.options.length > 0) {
+                    step.options.forEach(option => {
+                        const btn = document.createElement("button");
+                        btn.className = "option-button";
+                        // 選択肢テキストもsanitizeInputを使用してサニタイズ
+                        btn.innerHTML = styleDesc(option.text);
+
+                        if (entry.chosenOption === option.text) {
+                            btn.classList.add("selected");
+                        }
+
+                        // 自動選択されたステップの場合のみ変更不可に
+                        if (entry.autoSelected) {
+                            // 選択肢が選択済みの場合、クリックすると警告を表示
+                            btn.onclick = () => {
+                                showWarningPopup();
+                            };
+                            // 視覚的に変更不可であることを示す
+                            btn.style.opacity = "0.7";
+                            btn.style.cursor = "not-allowed";
+                        } else if (index < storyHistory.length - 1) {
+                            btn.onclick = () => {
+                                showConfirmation(index, option.text, option.next);
+                            };
+                        } else {
+                            btn.onclick = () => {
+                                // 現在のステップで選択を更新
+                                storyHistory[index].chosenOption = option.text;
+                                
+                                // 選択肢のテキストベースで履歴を記録（nonAutoSelectが無効=自動選択が有効な場合のみ）
+                                if (!step.nonAutoSelect) {
+                                    const optionsTextKey = createOptionsTextKey(step.options);
+                                    optionSelectionHistory[optionsTextKey] = option.text;
+                                }
+                                
+                                // 次のステップへ進む
+                                if (stepsData[option.next]) {
+                                    storyHistory.push({ 
+                                        stepId: option.next, 
+                                        chosenOption: null,
+                                        sequenceId: sequenceCounter++
+                                    });
+                                }
+                                renderFlow();
+                                scrollToCurrent();
+                            };
+                        }
+
+                        optionsDiv.appendChild(btn);
+                    });
+                } else if (step.defaultNext) {
                     const btn = document.createElement("button");
-                    btn.className = "option-button";
-                    // 選択肢テキストもsanitizeInputを使用してサニタイズ
-                    btn.innerHTML = styleDesc(option.text);
-
-                    if (entry.chosenOption === option.text) {
-                        btn.classList.add("selected");
-                    }
+                    btn.className = "next-button";
+                    btn.textContent = "次へ";
 
                     // 自動選択されたステップの場合のみ変更不可に
                     if (entry.autoSelected) {
-                        // 選択肢が選択済みの場合、クリックすると警告を表示
                         btn.onclick = () => {
                             showWarningPopup();
                         };
-                        // 視覚的に変更不可であることを示す
                         btn.style.opacity = "0.7";
                         btn.style.cursor = "not-allowed";
                     } else if (index < storyHistory.length - 1) {
                         btn.onclick = () => {
-                            showConfirmation(index, option.text, option.next);
+                            showConfirmation(index, "次へ", step.defaultNext);
                         };
                     } else {
                         btn.onclick = () => {
                             // 現在のステップで選択を更新
-                            storyHistory[index].chosenOption = option.text;
-                            
-                            // 選択肢のテキストベースで履歴を記録（nonAutoSelectが無効=自動選択が有効な場合のみ）
-                            if (!step.nonAutoSelect) {
-                                const optionsTextKey = createOptionsTextKey(step.options);
-                                optionSelectionHistory[optionsTextKey] = option.text;
-                            }
+                            storyHistory[index].chosenOption = "次へ";
                             
                             // 次のステップへ進む
-                            if (stepsData[option.next]) {
+                            if (stepsData[step.defaultNext]) {
                                 storyHistory.push({ 
-                                    stepId: option.next, 
+                                    stepId: step.defaultNext, 
                                     chosenOption: null,
                                     sequenceId: sequenceCounter++
                                 });
@@ -587,154 +747,153 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     optionsDiv.appendChild(btn);
-                });
-            } else if (step.defaultNext) {
-                const btn = document.createElement("button");
-                btn.className = "next-button";
-                btn.textContent = "次へ";
-
-                // 自動選択されたステップの場合のみ変更不可に
-                if (entry.autoSelected) {
-                    btn.onclick = () => {
-                        showWarningPopup();
-                    };
-                    btn.style.opacity = "0.7";
-                    btn.style.cursor = "not-allowed";
-                } else if (index < storyHistory.length - 1) {
-                    btn.onclick = () => {
-                        showConfirmation(index, "次へ", step.defaultNext);
-                    };
-                } else {
-                    btn.onclick = () => {
-                        // 現在のステップで選択を更新
-                        storyHistory[index].chosenOption = "次へ";
-                        
-                        // 次のステップへ進む
-                        if (stepsData[step.defaultNext]) {
-                            storyHistory.push({ 
-                                stepId: step.defaultNext, 
-                                chosenOption: null,
-                                sequenceId: sequenceCounter++
-                            });
-                        }
-                        renderFlow();
-                        scrollToCurrent();
-                    };
                 }
 
-                optionsDiv.appendChild(btn);
-            }
+                section.appendChild(optionsDiv);
+                container.appendChild(section);
+            });
 
-            section.appendChild(optionsDiv);
-            container.appendChild(section);
-        });
-
-        scrollToCurrent();
+            scrollToCurrent();
+        } catch (error) {
+            console.error("レンダリング中にエラーが発生しました:", error);
+            showValidationResults(
+                ["画面表示中にエラーが発生しました: " + error.message], 
+                []
+            );
+        }
     }
 
     // 初期化と各種イベントハンドラの設定
     function init() {
-        // 最初のステップを設定（シーケンス番号を追加）
-        sequenceCounter = 0;
-        storyHistory.push({ 
-            stepId: "1", 
-            chosenOption: null,
-            sequenceId: sequenceCounter++
-        });
-        renderFlow();
+        try {
+            // 最初のステップを設定（シーケンス番号を追加）
+            sequenceCounter = 0;
+            storyHistory.push({ 
+                stepId: "1", 
+                chosenOption: null,
+                sequenceId: sequenceCounter++
+            });
+            renderFlow();
 
-        // ページ上部へ戻るボタン
-        document.getElementById("scroll-top-button").onclick = () => {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-        };
-
-        // トップページへ戻るボタン
-        document.getElementById("top-page-button").onclick = () => {
-            window.location.href = "../index.html";
-        };
-
-        // 警告ポップアップの閉じるボタン
-        document.getElementById("warning-popup-ok").onclick = hideWarningPopup;
-
-        // ドロップダウンメニューの表示・非表示
-        const headerMenu = document.querySelector(".header-menu");
-        const dropdownMenu = document.getElementById("dropdown-menu");
-
-        headerMenu.onclick = (e) => {
-            e.stopPropagation();
-            dropdownMenu.style.display =
-                dropdownMenu.style.display === "block" ? "none" : "block";
-        };
-
-        // ドロップダウンメニュー自体のクリックイベントを阻止
-        dropdownMenu.addEventListener("click", (e) => {
-            e.stopPropagation();
-        });
-
-        // ドキュメント全体をクリックしたらドロップダウンを閉じる
-        // ただし、ドロップダウンメニュー以外の領域がクリックされた場合のみ
-        document.addEventListener("click", (e) => {
-            if (dropdownMenu.style.display === "block" && 
-                !dropdownMenu.contains(e.target) && 
-                !headerMenu.contains(e.target)) {
-                dropdownMenu.style.display = "none";
-            }
-        });
-
-        // ドロップダウンアイテムのクリックイベント
-        const dropdownItems = document.querySelectorAll(".dropdown-item:not(.has-submenu)");
-        dropdownItems.forEach((item) => {
-            item.onclick = (e) => {
-                e.stopPropagation(); // イベント伝播を防止
-                const stepId = item.getAttribute("data-step");
-                // 有効なステップIDのみを受け入れる検証を追加
-                // 英数字、アンダースコア、ハイフンのみを許可
-                if (stepId && /^[a-zA-Z0-9_-]+$/.test(stepId) && stepsData[stepId]) {
-                    // 履歴を完全にクリアして新しく開始
-                    storyHistory = [];
-                    optionSelectionHistory = {}; // 自動選択履歴もクリア
-                    sequenceCounter = 0; // シーケンスカウンターもリセット
-                    storyHistory.push({ 
-                        stepId: stepId, 
-                        chosenOption: null,
-                        sequenceId: sequenceCounter++
-                    });
-                    renderFlow();
+            // 安全なイベントハンドラ設定
+            function setEventHandler(elementId, eventType, handler) {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.addEventListener(eventType, handler);
+                } else {
+                    console.warn(`Element with ID "${elementId}" not found for event binding`);
                 }
-                // ドロップダウンメニューを非表示にする処理を削除
-                //
-            };
-        });
-
-        // サブメニューアイテムのクリックイベント
-        const submenuItems = document.querySelectorAll(".submenu-item");
-        submenuItems.forEach((item) => {
-            item.onclick = (e) => {
-                e.stopPropagation(); // 親要素へのイベント伝播を防止
-                const stepId = item.getAttribute("data-step");
-                // 履歴を完全にクリアして新しく開始
-                storyHistory = [];
-                optionSelectionHistory = {}; // 自動選択履歴もクリア
-                sequenceCounter = 0; // シーケンスカウンターもリセット
-                storyHistory.push({ 
-                    stepId: stepId, 
-                    chosenOption: null,
-                    sequenceId: sequenceCounter++
-                });
-                renderFlow();
-                // dropdownMenu.style.display = "none"; この行を削除
-            };
-        });
-
-        // サブメニューを持つドロップダウンアイテムのクリックイベント
-        const hasSubmenuItems = document.querySelectorAll(".dropdown-item.has-submenu");
-        hasSubmenuItems.forEach((item) => {
-            // クリックイベントを防止（そのままでは親メニュークリックで閉じてしまうため）
-            item.onclick = (e) => {
-                e.stopPropagation();
-            };
-        });
             }
+
+            // ページ上部へ戻るボタン
+            setEventHandler("scroll-top-button", "click", () => {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            });
+
+            // トップページへ戻るボタン
+            setEventHandler("top-page-button", "click", () => {
+                window.location.href = "../index.html";
+            });
+
+            // 警告ポップアップの閉じるボタン
+            setEventHandler("warning-popup-ok", "click", hideWarningPopup);
+
+            // ドロップダウンメニューの表示・非表示
+            const headerMenu = document.querySelector(".header-menu");
+            const dropdownMenu = document.getElementById("dropdown-menu");
+
+            if (headerMenu && dropdownMenu) {
+                headerMenu.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    dropdownMenu.style.display =
+                        dropdownMenu.style.display === "block" ? "none" : "block";
+                });
+
+                // ドロップダウンメニュー自体のクリックイベントを阻止
+                dropdownMenu.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                });
+
+                // ドキュメント全体をクリックしたらドロップダウンを閉じる
+                document.addEventListener("click", (e) => {
+                    if (dropdownMenu.style.display === "block" && 
+                        !dropdownMenu.contains(e.target) && 
+                        !headerMenu.contains(e.target)) {
+                        dropdownMenu.style.display = "none";
+                    }
+                });
+            }
+
+            // ドロップダウンアイテムのクリックイベント
+            const dropdownItems = document.querySelectorAll(".dropdown-item:not(.has-submenu)");
+            dropdownItems.forEach((item) => {
+                item.addEventListener("click", (e) => {
+                    e.stopPropagation(); // イベント伝播を防止
+                    
+                    // データ属性から安全にステップIDを取得
+                    const stepId = item.getAttribute("data-step");
+                    
+                    // 有効なステップIDのみを受け入れる厳格な検証
+                    if (stepId && /^[a-zA-Z0-9_-]+$/.test(stepId) && stepsData[stepId]) {
+                        // 履歴を完全にクリアして新しく開始
+                        storyHistory = [];
+                        optionSelectionHistory = {}; // 自動選択履歴もクリア
+                        sequenceCounter = 0; // シーケンスカウンターもリセット
+                        storyHistory.push({ 
+                            stepId: stepId, 
+                            chosenOption: null,
+                            sequenceId: sequenceCounter++
+                        });
+                        renderFlow();
+                    } else {
+                        console.warn(`Invalid or non-existent stepId: ${stepId}`);
+                    }
+                });
+            });
+
+            // サブメニューアイテムのクリックイベント
+            const submenuItems = document.querySelectorAll(".submenu-item");
+            submenuItems.forEach((item) => {
+                item.addEventListener("click", (e) => {
+                    e.stopPropagation(); // 親要素へのイベント伝播を防止
+                    
+                    // データ属性から安全にステップIDを取得
+                    const stepId = item.getAttribute("data-step");
+                    
+                    // 有効なステップIDのみを受け入れる検証
+                    if (stepId && /^[a-zA-Z0-9_-]+$/.test(stepId) && stepsData[stepId]) {
+                        // 履歴を完全にクリアして新しく開始
+                        storyHistory = [];
+                        optionSelectionHistory = {}; // 自動選択履歴もクリア
+                        sequenceCounter = 0; // シーケンスカウンターもリセット
+                        storyHistory.push({ 
+                            stepId: stepId, 
+                            chosenOption: null,
+                            sequenceId: sequenceCounter++
+                        });
+                        renderFlow();
+                    } else {
+                        console.warn(`Invalid or non-existent stepId: ${stepId}`);
+                    }
+                });
+            });
+
+            // サブメニューを持つドロップダウンアイテムのクリックイベント
+            const hasSubmenuItems = document.querySelectorAll(".dropdown-item.has-submenu");
+            hasSubmenuItems.forEach((item) => {
+                // クリックイベントを防止（そのままでは親メニュークリックで閉じてしまうため）
+                item.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                });
+            });
+        } catch (error) {
+            console.error("初期化処理中にエラーが発生しました:", error);
+            showValidationResults(
+                ["アプリケーションの初期化中にエラーが発生しました: " + error.message], 
+                []
+            );
+        }
+    }
 
     // 初期化実行
     init();
