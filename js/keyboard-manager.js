@@ -1454,52 +1454,28 @@
         }
         
         /**
-         * フォーカス表示用のスタイルを追加（安全な実装）
+         * フォーカス表示用のスタイルを確認（CSSファイルに事前定義）
          */
         addFocusStyles() {
             try {
-                // CSSがまだ存在しない場合のみ追加
-                if (!document.getElementById(this.config.styleId)) {
-                    const styleContent = `
-                        .keyboard-focus {
-                            outline: 3px solid #ffcc00 !important;
-                            box-shadow: 0 0 8px #ffcc00 !important;
-                            position: relative;
-                            z-index: 10;
-                        }
-                        .dropdown-item.keyboard-focus,
-                        .submenu-item.keyboard-focus {
-                            background-color: #e0e0e0;
-                        }
-                        .keyboard-section-highlight {
-                            transition: background-color 0.3s ease;
-                            background-color: #fffacd !important;
-                        }
-                    `;
-                    
-                    // CSSルールの挿入方法を変更
-                    // <style>要素を直接操作ではなく、StyleSheetに追加
-                    const styleSheet = document.createElement('style');
-                    styleSheet.id = this.config.styleId;
-                    styleSheet.type = 'text/css';
-                    
-                    // CSSの安全な挿入
-                    try {
-                        // モダンブラウザ用
-                        styleSheet.appendChild(document.createTextNode(styleContent));
-                    } catch (e) {
-                        // IE用フォールバック
-                        styleSheet.styleSheet.cssText = styleContent;
-                    }
-                    
-                    // ドキュメントヘッドに追加
-                    const head = document.head || document.getElementsByTagName('head')[0];
-                    if (head) {
-                        head.appendChild(styleSheet);
-                    }
+                // CSSがすでにstyle.cssに定義されていることを確認するのみ
+                const testElement = document.createElement('div');
+                testElement.classList.add('keyboard-focus');
+                document.body.appendChild(testElement);
+                
+                // スタイルが適用されているか確認（開発/テスト時のみ）
+                const computedStyle = window.getComputedStyle(testElement);
+                const hasOutline = computedStyle.outline.includes('solid') && 
+                                  computedStyle.outline.includes('rgb(255, 204, 0)');
+                
+                if (!hasOutline) {
+                    console.warn('keyboard-focusスタイルがCSSに定義されていない可能性があります');
                 }
+                
+                // テスト要素を削除
+                document.body.removeChild(testElement);
             } catch (error) {
-                console.error('フォーカススタイルの追加中にエラーが発生しました:', error);
+                console.error('フォーカススタイルの確認中にエラーが発生しました:', error);
             }
         }
     }
