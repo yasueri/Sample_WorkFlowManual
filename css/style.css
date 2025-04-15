@@ -129,6 +129,8 @@ body {
 .keypad-guide-list {
     margin: 0;
     padding-left: 15px;
+    list-style-type: none;
+    padding-left: 0.7em;
 }
 
 /* キーボード操作ヘルプのスタイル　終了 */
