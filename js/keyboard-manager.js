@@ -682,7 +682,7 @@
                 this.moveFocusInStory('down');
                 return;
             }
-            
+
             if (this.isKey(key, this.KEY_MAPS.LEFT)) {
                 this.moveFocusInStory('left');
                 return;
@@ -791,7 +791,7 @@
             if (!submenu) return;
             
             // サブメニューを表示
-            submenu.style.display = 'block';
+            submenu.classList.add('submenu-visible');
             
             // フォーカスをサブメニューの最初の項目に移動
             this.currentFocus.type = this.FOCUS_TYPES.SUBMENU;
@@ -835,7 +835,7 @@
         closeAllSubmenus() {
             document.querySelectorAll('.submenu').forEach(submenu => {
                 if (submenu) {
-                    submenu.style.display = '';
+                    submenu.classList.remove('submenu-visible');
                 }
             });
         }
@@ -853,7 +853,7 @@
             // 指定されたアイテムのサブメニューを表示
             const submenu = parentItem.querySelector('.submenu');
             if (submenu) {
-                submenu.style.display = 'block';
+                submenu.classList.add('submenu-visible');
             }
         }
         
@@ -913,7 +913,7 @@
             const safeParentIndex = this.currentFocus.parentIndex + 1;
             const submenu = document.querySelector(`.dropdown-item:nth-child(${safeParentIndex}) .submenu`);
             if (submenu) {
-                submenu.style.display = '';
+                submenu.classList.remove('submenu-visible');
             }
             
             // ドロップダウンメニューも閉じる
@@ -935,7 +935,7 @@
             const safeParentIndex = this.currentFocus.parentIndex + 1;
             const submenu = document.querySelector(`.dropdown-item:nth-child(${safeParentIndex}) .submenu`);
             if (submenu) {
-                submenu.style.display = '';
+                submenu.classList.remove('submenu-visible');
             }
             
             // フォーカスをドロップダウンに戻す
@@ -1333,7 +1333,7 @@
                 const dropdownMenu = this.getElementSafely('dropdown-menu');
                 if (!dropdownMenu) return;
                 
-                dropdownMenu.style.display = 'block';
+                dropdownMenu.classList.add('dropdown-visible');
                 this.isDropdownVisible = true;
                 
                 // フォーカスをドロップダウンに移動
@@ -1353,7 +1353,7 @@
                 const dropdownMenu = this.getElementSafely('dropdown-menu');
                 if (!dropdownMenu) return;
                 
-                dropdownMenu.style.display = 'none';
+                dropdownMenu.classList.remove('dropdown-visible');
                 this.isDropdownVisible = false;
                 
                 // フォーカスをストーリーに戻す
@@ -1454,52 +1454,28 @@
         }
         
         /**
-         * フォーカス表示用のスタイルを追加（安全な実装）
+         * フォーカス表示用のスタイルを確認（CSSファイルに事前定義）
          */
         addFocusStyles() {
             try {
-                // CSSがまだ存在しない場合のみ追加
-                if (!document.getElementById(this.config.styleId)) {
-                    const styleContent = `
-                        .keyboard-focus {
-                            outline: 3px solid #ffcc00 !important;
-                            box-shadow: 0 0 8px #ffcc00 !important;
-                            position: relative;
-                            z-index: 10;
-                        }
-                        .dropdown-item.keyboard-focus,
-                        .submenu-item.keyboard-focus {
-                            background-color: #e0e0e0;
-                        }
-                        .keyboard-section-highlight {
-                            transition: background-color 0.3s ease;
-                            background-color: #fffacd !important;
-                        }
-                    `;
-                    
-                    // CSSルールの挿入方法を変更
-                    // <style>要素を直接操作ではなく、StyleSheetに追加
-                    const styleSheet = document.createElement('style');
-                    styleSheet.id = this.config.styleId;
-                    styleSheet.type = 'text/css';
-                    
-                    // CSSの安全な挿入
-                    try {
-                        // モダンブラウザ用
-                        styleSheet.appendChild(document.createTextNode(styleContent));
-                    } catch (e) {
-                        // IE用フォールバック
-                        styleSheet.styleSheet.cssText = styleContent;
-                    }
-                    
-                    // ドキュメントヘッドに追加
-                    const head = document.head || document.getElementsByTagName('head')[0];
-                    if (head) {
-                        head.appendChild(styleSheet);
-                    }
+                // CSSがすでにstyle.cssに定義されていることを確認するのみ
+                const testElement = document.createElement('div');
+                testElement.classList.add('keyboard-focus');
+                document.body.appendChild(testElement);
+                
+                // スタイルが適用されているか確認（開発/テスト時のみ）
+                const computedStyle = window.getComputedStyle(testElement);
+                const hasOutline = computedStyle.outline.includes('solid') && 
+                                  computedStyle.outline.includes('rgb(255, 204, 0)');
+                
+                if (!hasOutline) {
+                    console.warn('keyboard-focusスタイルがCSSに定義されていない可能性があります');
                 }
+                
+                // テスト要素を削除
+                document.body.removeChild(testElement);
             } catch (error) {
-                console.error('フォーカススタイルの追加中にエラーが発生しました:', error);
+                console.error('フォーカススタイルの確認中にエラーが発生しました:', error);
             }
         }
     }
@@ -1529,7 +1505,7 @@
                 isDragging = true;
                 offsetX = e.clientX - helpBox.getBoundingClientRect().left;
                 offsetY = e.clientY - helpBox.getBoundingClientRect().top;
-                helpBox.style.cursor = 'grabbing';
+                helpBox.classList.add('keypad-guide-grabbing');
                 
                 // イベントのデフォルト動作を抑制
                 e.preventDefault();
@@ -1554,11 +1530,10 @@
                         window.innerHeight - helpBox.offsetHeight
                     );
                     
-                    // スタイルを安全に適用
-                    helpBox.style.left = `${x}px`;
-                    helpBox.style.right = 'auto';
-                    helpBox.style.top = `${y}px`;
-                    helpBox.style.bottom = 'auto';
+                    // CSS変数で位置を設定
+                    helpBox.classList.add('keypad-guide-position');
+                    helpBox.style.setProperty('--guide-left', `${x}px`);
+                    helpBox.style.setProperty('--guide-top', `${y}px`);
                     
                     dragTimeoutId = null;
                 }, 16); // 約60FPS相当の更新頻度
@@ -1568,7 +1543,7 @@
             document.addEventListener('mouseup', function() {
                 if (isDragging) {
                     isDragging = false;
-                    helpBox.style.cursor = 'move';
+                    helpBox.classList.remove('keypad-guide-grabbing');
                     
                     // タイムアウトをクリア
                     if (dragTimeoutId) {
@@ -1582,7 +1557,7 @@
             document.addEventListener('mouseleave', function() {
                 if (isDragging) {
                     isDragging = false;
-                    helpBox.style.cursor = 'move';
+                    helpBox.classList.remove('keypad-guide-grabbing');
                     
                     // タイムアウトをクリア
                     if (dragTimeoutId) {
@@ -1598,7 +1573,7 @@
                 closeButton.addEventListener('click', function(e) {
                     const keypadGuide = document.getElementById('keypad-guide');
                     if (keypadGuide) {
-                        keypadGuide.style.display = 'none';
+                        keypadGuide.classList.add('keypad-guide-hidden');
                     }
                     
                     // イベントの伝播を停止

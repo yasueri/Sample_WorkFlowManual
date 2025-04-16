@@ -224,6 +224,20 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (row.Option3Next && !allStepIds.has(row.Option3Next)) {
                 warnings.push(`ステップ ${row.StepID}: 選択肢「${row.Option3Text}」が無効なステップ "${row.Option3Next}" を指しています`);
             }
+            
+            // 選択肢4の検証
+            if (row.Option4Text && !row.Option4Next) {
+                errors.push(`ステップ ${row.StepID}: 選択肢「${row.Option4Text}」の次のステップが指定されていません`);
+            } else if (row.Option4Next && !allStepIds.has(row.Option4Next)) {
+                warnings.push(`ステップ ${row.StepID}: 選択肢「${row.Option4Text}」が無効なステップ "${row.Option4Next}" を指しています`);
+            }
+            
+            // 選択肢5の検証
+            if (row.Option5Text && !row.Option5Next) {
+                errors.push(`ステップ ${row.StepID}: 選択肢「${row.Option5Text}」の次のステップが指定されていません`);
+            } else if (row.Option5Next && !allStepIds.has(row.Option5Next)) {
+                warnings.push(`ステップ ${row.StepID}: 選択肢「${row.Option5Text}」が無効なステップ "${row.Option5Next}" を指しています`);
+            }
         });
         
         // ユーザーフレンドリーなポップアップで通知
@@ -243,58 +257,28 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // ポップアップのHTML要素を作成
         const popupOverlay = document.createElement('div');
-        popupOverlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-        `;
+        popupOverlay.className = 'validation-popup-overlay';
         
         const popupBox = document.createElement('div');
-        popupBox.style.cssText = `
-            background: #fff;
-            width: 80%;
-            max-width: 600px;
-            max-height: 80vh;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        `;
+        popupBox.className = 'validation-popup-box';
         
         const title = document.createElement('h2');
-        title.style.cssText = `
-            margin: 0 0 15px 0;
-            color: #d9534f;
-            font-size: 1.5em;
-        `;
+        title.className = 'validation-popup-title';
         title.textContent = errors.length > 0 ? 'CSVデータにエラーがあります' : '警告';
         
         const messageArea = document.createElement('div');
-        messageArea.style.cssText = `
-            overflow-y: auto;
-            margin-bottom: 15px;
-            flex-grow: 1;
-        `;
+        messageArea.className = 'message-area';
         
         // エラーの表示
         if (errors.length > 0) {
             const errorsList = document.createElement('div');
             const errorTitle = document.createElement('p');
-            errorTitle.style.cssText = "color: #d9534f; font-weight: bold;";
+            errorTitle.className = 'error-title';
             errorTitle.textContent = "次のエラーを修正してください:";
             errorsList.appendChild(errorTitle);
             
             const ul = document.createElement('ul');
-            ul.style.cssText = "color: #d9534f; text-align: left; margin-bottom: 15px;";
+            ul.className = 'error-list';
             
             errors.forEach(err => {
                 const li = document.createElement('li');
@@ -310,12 +294,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (warnings.length > 0) {
             const warningsList = document.createElement('div');
             const warningTitle = document.createElement('p');
-            warningTitle.style.cssText = "color: #f0ad4e; font-weight: bold;";
+            warningTitle.className = 'warning-title';
             warningTitle.textContent = "注意事項:";
             warningsList.appendChild(warningTitle);
             
             const ul = document.createElement('ul');
-            ul.style.cssText = "color: #f0ad4e; text-align: left;";
+            ul.className = 'warning-list';
             
             warnings.forEach(warn => {
                 const li = document.createElement('li');
@@ -329,23 +313,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // 閉じるボタン
         const buttonContainer = document.createElement('div');
-        buttonContainer.style.cssText = `
-            display: flex;
-            justify-content: center;
-        `;
+        buttonContainer.className = 'button-container';
         
         const closeButton = document.createElement('button');
         closeButton.textContent = '閉じる';
-        closeButton.style.cssText = `
-            min-width: 100px;
-            padding: 8px 16px;
-            background-color: #6c757d;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 1em;
-        `;
+        closeButton.className = 'close-button';
         closeButton.addEventListener('click', () => {
             document.body.removeChild(popupOverlay);
         });
@@ -395,20 +367,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (row.Option1Text && row.Option1Next) {
                     options.push({
                         text: row.Option1Text,
-                        next: row.Option1Next.replace(/to\s*/, "")
+                        next: row.Option1Next
                     });
                 }
                 if (row.Option2Text && row.Option2Next) {
                     options.push({
                         text: row.Option2Text,
-                        next: row.Option2Next.replace(/to\s*/, "")
+                        next: row.Option2Next
                     });
                 }
-                // 3つ目の選択肢に対応（新規追加）
                 if (row.Option3Text && row.Option3Next) {
                     options.push({
                         text: row.Option3Text,
-                        next: row.Option3Next.replace(/to\s*/, "")
+                        next: row.Option3Next
+                    });
+                }
+                if (row.Option4Text && row.Option4Next) {
+                    options.push({
+                        text: row.Option4Text,
+                        next: row.Option4Next
+                    });
+                }
+                if (row.Option5Text && row.Option5Next) {
+                    options.push({
+                        text: row.Option5Text,
+                        next: row.Option5Next
                     });
                 }
 
@@ -606,14 +589,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (step.nota) {
                     const notaDiv = document.createElement("div");
                     notaDiv.className = "story-nota";
-                    notaDiv.innerHTML = styleDesc(step.nota);
+                    
+                    // 改行で分割してチェックボックスリストを作成
+                    const notaLines = step.nota.split('\n');
+                    let checkboxHtml = '';
+                    
+                    notaLines.forEach((line, index) => {
+                        if (line.trim()) { // 空行でなければチェックボックスを追加
+                            checkboxHtml += `<div class="checkbox-item">
+                                <input type="checkbox" id="nota-check-${index}" class="nota-checkbox">
+                                <label for="nota-check-${index}">${enhancedSanitizeInput(line)}</label>
+                            </div>`;
+                        }
+                    });
+                    
+                    notaDiv.innerHTML = checkboxHtml;
                     section.appendChild(notaDiv);
                 }
 
                 // 自動選択メッセージの表示
                 if (entry.autoSelected) {
                     const autoSelectMessage = document.createElement("div");
-                    autoSelectMessage.innerHTML = '<p style="color:#007acc;font-weight:bold;margin:10px 0;">※前回と同じ選択肢が自動選択されました</p>';
+                    autoSelectMessage.className = "auto-select-message";
+                    autoSelectMessage.textContent = "※前回と同じ選択肢が自動選択されました";
                     section.appendChild(autoSelectMessage);
                 }
 
@@ -638,7 +636,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             if (matchedOption) {
                                 // 自動選択のメッセージを表示
                                 const autoSelectMessage = document.createElement("div");
-                                autoSelectMessage.innerHTML = '<p style="color:#007acc;font-weight:bold;margin:10px 0;">※前回と同じ選択肢が自動選択されました</p>';
+                                autoSelectMessage.className = "auto-select-message";
+                                autoSelectMessage.textContent = "※前回と同じ選択肢が自動選択されました";
                                 section.appendChild(autoSelectMessage);
                                 
                                 // 自動的に選択を適用
@@ -680,8 +679,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 showWarningPopup();
                             };
                             // 視覚的に変更不可であることを示す
-                            btn.style.opacity = "0.7";
-                            btn.style.cursor = "not-allowed";
+                            btn.classList.add("button-disabled");
                         } else if (index < storyHistory.length - 1) {
                             btn.onclick = () => {
                                 showConfirmation(index, option.text, option.next);
@@ -719,11 +717,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // 自動選択されたステップの場合のみ変更不可に
                     if (entry.autoSelected) {
+                        // 選択肢が選択済みの場合、クリックすると警告を表示
                         btn.onclick = () => {
                             showWarningPopup();
                         };
-                        btn.style.opacity = "0.7";
-                        btn.style.cursor = "not-allowed";
+                        // 視覚的に変更不可であることを示す
+                        btn.classList.add("button-disabled");
                     } else if (index < storyHistory.length - 1) {
                         btn.onclick = () => {
                             showConfirmation(index, "次へ", step.defaultNext);
