@@ -2,10 +2,23 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; manifest-src 'self'">
-    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Content-Security-Policy" 
+          content="default-src 'none'; 
+                   script-src 'self'; 
+                   style-src 'self'; 
+                   img-src 'self'; 
+                   font-src 'self'; 
+                   connect-src 'none'; 
+                   form-action 'none'; 
+                   base-uri 'self'; 
+                   manifest-src 'self'">
     <meta http-equiv="X-XSS-Protection" content="1; mode=block">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="Referrer-Policy" content="no-referrer">
+    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), interest-cohort=()">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     
     <title>業務フロー ナビゲーション</title>
     <link rel="stylesheet" href="../css/style.css">
@@ -91,7 +104,7 @@
             <p class="keypad-guide-title">テンキー操作ガイド:</p>
             <button id="close-keypad-guide" class="keypad-guide-close-button">×</button>
         </div>
-        <ul class="keypad-guide-list" style="list-style-type: none; padding-left: 0.7em;">
+        <ul class="keypad-guide-list">
             <li>7： メニュー表示</li>
             <li>*： ページ上部へ</li>
             <li>-： トップページへ</li>
@@ -99,8 +112,6 @@
             <li>4,6： ← → 移動</li>
             <li>Enter： 決定</li>
             <li>1,2,3： 選択肢を選択</li>
-
-
         </ul>
     </div>
 
