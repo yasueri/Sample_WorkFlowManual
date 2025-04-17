@@ -5,21 +5,34 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // CSVの安全性を検証する関数
     function validateCsvSafety(csvText) {
-        // 潜在的な危険パターンのチェック
+        // 基本的な危険パターンのチェック - 難読化対策を強化
         const dangerPatterns = [
-            /<script/i,
-            /javascript:/i,
-            /data:text\/html/i,
-            /function\(\)/i,
-            /eval\(/i,
-            /setTimeout\(/i,
-            /setInterval\(/i
+            /<\s*s\s*c\s*r\s*i\s*p\s*t/i,       // スクリプトタグ（例: <script>, < s c r i p t>）
+            /j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/i, // JavaScriptプロトコル（例: javascript:, j a v a s c r i p t:）
+            /d\s*a\s*t\s*a\s*:/i,               // データURL（例: data:, d a t a:）
+            /e\s*v\s*a\s*l\s*\(/i,               // eval関数（例: eval(), e v a l (  )）
+            /o\s*n\s*\w+\s*=/i,                 // イベントハンドラ属性（例: onclick=, o n click =, onmouseover=）
+            /<\s*i\s*f\s*r\s*a\s*m\s*e/i,        // iframeタグ（例: <iframe>, < i f r a m e >）
+            /<\s*o\s*b\s*j\s*e\s*c\s*t/i,        // objectタグ（例: <object>, < o b j e c t >）
+            /<\s*e\s*m\s*b\s*e\s*d/i,            // embedタグ（例: <embed>, < e m b e d >）
+            /d\s*o\s*c\s*u\s*m\s*e\s*n\s*t\s*\./i, // documentオブジェクト操作（例: document., d o c u m e n t .）
+            /w\s*i\s*n\s*d\s*o\s*w\s*\./i,        // windowオブジェクト操作（例: window., w i n d o w .）
+            /\bl\s*o\s*c\s*a\s*t\s*i\s*o\s*n\b/i, // locationオブジェクト操作（例: location, l o c a t i o n）
+            /l\s*o\s*c\s*a\s*l\s*S\s*t\s*o\s*r\s*a\s*g\s*e/i, // ローカルストレージ操作（例: localStorage, l o c a l S t o r a g e）
+            /s\s*e\s*s\s*s\s*i\s*o\s*n\s*S\s*t\s*o\s*r\s*a\s*g\s*e/i // セッションストレージ操作（例: sessionStorage, s e s s i o n S t o r a g e）
         ];
         
-        // いずれかのパターンにマッチする場合は警告
-        const foundPattern = dangerPatterns.find(pattern => pattern.test(csvText));
-        if (foundPattern) {
-            console.warn("CSVデータに潜在的な危険パターンが見つかりました。処理を続行する前に内容を確認してください。");
+        // 危険パターンチェック
+        for (const pattern of dangerPatterns) {
+            if (pattern.test(csvText)) {
+                console.warn(`CSVデータに潜在的な危険パターンが見つかりました: ${pattern}`);
+                return false;
+            }
+        }
+        
+        // データサイズの検証
+        if (csvText.length > 5000000) { // 5MBを超える場合（DoS攻撃対策）
+            console.warn("CSVデータが大きすぎます: " + (csvText.length / 1000000).toFixed(2) + "MB");
             return false;
         }
         
@@ -74,33 +87,66 @@ document.addEventListener('DOMContentLoaded', function() {
         return rows;
     }
 
-    // 強化されたサニタイズ関数
-    function enhancedSanitizeInput(input) {
+    // 最大再帰回数を設定
+    const MAX_DECODE_RECURSION = 5;
+
+    // HTML実体参照をデコードする関数（例: &lt;script&gt; → <script>）
+    function decodeHtmlEntities(input) {
+        return input
+            .replace(/&amp;/g, '&')      // &amp; → &
+            .replace(/&lt;/g, '<')       // &lt; → 
+            .replace(/&gt;/g, '>')       // &gt; → >
+            .replace(/&quot;/g, '"')     // &quot; → "
+            .replace(/&#039;/g, "'")     // &#039; → '
+            .replace(/&#39;/g, "'")      // &#39; → '
+            // 16進数のHTML実体参照（例: &#x3c; → <）
+            .replace(/&#x([0-9a-f]+);/gi, (match, hex) => String.fromCharCode(parseInt(hex, 16)))
+            // 10進数のHTML実体参照（例: &#60; → <）
+            .replace(/&#(\d+);/g, (match, dec) => String.fromCharCode(dec));
+    }
+
+    // 強化されたサニタイズ関数（再帰回数制限付き）
+    function enhancedSanitizeInput(input, recursionCount = 0) {
+        // 再帰回数チェック
+        if (recursionCount >= MAX_DECODE_RECURSION) {
+            console.warn("最大再帰回数に達しました。入力に多層の難読化が含まれている可能性があります。");
+            return ""; // 安全のため空文字列を返す
+        }
+        
+        // null/undefined チェック
         if (input === null || input === undefined) return "";
         
         // 文字列化
         input = String(input);
         
+        // HTML実体参照をデコードして隠れた危険なパターンを検出（例: &lt;script&gt; → <script>）
+        const decodedInput = decodeHtmlEntities(input);
+        if (decodedInput !== input) {
+            // デコードした結果が変わっている場合は再帰的に処理（多層の難読化対策）
+            // 再帰呼び出し時にカウンターをインクリメント
+            return enhancedSanitizeInput(decodedInput, recursionCount + 1);
+        }
+        
         // HTML特殊文字のエスケープ
         input = input
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
+            .replace(/&/g, '&amp;')      // & → &amp;
+            .replace(/</g, '&lt;')       // < → &lt;
+            .replace(/>/g, '&gt;')       // > → &gt;
+            .replace(/"/g, '&quot;')     // " → &quot;
+            .replace(/'/g, '&#039;');    // ' → &#039;
         
-        // スクリプトインジェクション対策（強化版）
+        // スクリプトインジェクション対策（空白による難読化対策を追加）
         input = input
-            .replace(/javascript:/gi, '')
-            .replace(/data:/gi, '')
-            .replace(/vbscript:/gi, '')
-            .replace(/expression:/gi, '')  // CSSインジェクション対策を追加
-            .replace(/eval\(/gi, '')       // eval呼び出し対策を追加
-            .replace(/prompt\(/gi, '')     // ブラウザプロンプト対策
-            .replace(/alert\(/gi, '');     // アラート対策
+            .replace(/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '') // javascript: 対策（空白対応）
+            .replace(/d\s*a\s*t\s*a\s*:/gi, '')                         // data: 対策（空白対応）
+            .replace(/v\s*b\s*s\s*c\s*r\s*i\s*p\s*t\s*:/gi, '')         // vbscript: 対策（空白対応）
+            .replace(/e\s*x\s*p\s*r\s*e\s*s\s*s\s*i\s*o\s*n\s*:/gi, '') // CSS expression: 対策（空白対応）
+            .replace(/e\s*v\s*a\s*l\s*\(/gi, '')                        // eval() 対策（空白対応）
+            .replace(/p\s*r\s*o\s*m\s*p\s*t\s*\(/gi, '')                // prompt() 対策（空白対応）
+            .replace(/a\s*l\s*e\s*r\s*t\s*\(/gi, '');                   // alert() 対策（空白対応）
         
-        // イベントハンドラと危険な属性の徹底的な除去
-        input = input.replace(/on\w+\s*=|\w+:\s*url\s*\(/gi, '');
+        // イベントハンドラと危険な属性の徹底的な除去（空白対応）
+        input = input.replace(/o\s*n\s*\w+\s*=|\w+\s*:\s*u\s*r\s*l\s*\(/gi, ''); // onclick=, on click=, url(, u r l ( 対策
         
         return input;
     }
@@ -598,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (line.trim()) { // 空行でなければチェックボックスを追加
                             checkboxHtml += `<div class="checkbox-item">
                                 <input type="checkbox" id="nota-check-${index}" class="nota-checkbox">
-                                <label for="nota-check-${index}">${enhancedSanitizeInput(line)}</label>
+                                <label for="nota-check-${index}">${renderSafeHtml(line)}</label>
                             </div>`;
                         }
                     });
